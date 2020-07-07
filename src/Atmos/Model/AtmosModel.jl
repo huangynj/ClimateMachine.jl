@@ -73,7 +73,9 @@ import ..DGMethods.NumericalFluxes:
     NumericalFluxGradient,
     NumericalFluxSecondOrder,
     CentralNumericalFluxHigherOrder,
-    CentralNumericalFluxDivergence
+    CentralNumericalFluxDivergence,
+    CentralNumericalFluxFirstOrder,
+    numerical_flux_first_order!
 
 import ..Courant: advective_courant, nondiffusive_courant, diffusive_courant
 
@@ -740,5 +742,108 @@ function init_state_prognostic!(
     args...,
 )
     m.init_state_prognostic(m, state, aux, coords, t, args...)
+end
+
+struct RoeNumericalFlux <: NumericalFluxFirstOrder end
+function numerical_flux_first_order!(
+    numerical_flux::RoeNumericalFlux,
+    balance_law::AtmosModel,
+    fluxᵀn::Vars{S},
+    normal_vector::SVector,
+    state_conservative⁻::Vars{S},
+    state_auxiliary⁻::Vars{A},
+    state_conservative⁺::Vars{S},
+    state_auxiliary⁺::Vars{A},
+    t,
+    direction,
+) where {S, A}
+
+    numerical_flux_first_order!(
+        CentralNumericalFluxFirstOrder(),
+        balance_law,
+        fluxᵀn,
+        normal_vector,
+        state_conservative⁻,
+        state_auxiliary⁻,
+        state_conservative⁺,
+        state_auxiliary⁺,
+        t,
+        direction,
+    )
+
+    FT = eltype(fluxᵀn)
+    param_set = balance_law.param_set
+    _cv_d::FT = cv_d(param_set)
+    _T_0::FT = T_0(param_set)
+    γ::FT = cp_d(param_set) / cv_d(param_set)
+
+    Φ = gravitational_potential(balance_law, state_auxiliary⁻)
+
+    ρ⁻ = state_conservative⁻.ρ
+    ρu⁻ = state_conservative⁻.ρu
+    ρe⁻ = state_conservative⁻.ρe
+
+    u⁻ = ρu⁻ / ρ⁻
+    p⁻ = pressure(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁻,
+        state_auxiliary⁻,
+    )
+    h⁻ = (ρe⁻ + p⁻) / ρ⁻
+
+    ρ⁺ = state_conservative⁺.ρ
+    ρu⁺ = state_conservative⁺.ρu
+    ρe⁺ = state_conservative⁺.ρe
+
+    u⁺ = ρu⁺ / ρ⁺
+    p⁺ = pressure(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁺,
+        state_auxiliary⁺,
+    )
+    h⁺ = (ρe⁺ + p⁺) / ρ⁺
+
+    ũ = (sqrt(ρ⁻) * u⁻ + sqrt(ρ⁺) * u⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
+    h̃ = (sqrt(ρ⁻) * h⁻ + sqrt(ρ⁺) * h⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
+    c̃ = sqrt((γ - 1) * (h̃ - ũ' * ũ / 2 - Φ + _cv_d * _T_0))
+
+    # chosen by fair dice roll
+    # guaranteed to be random
+    ω = FT(π) / 3
+    δ = FT(π) / 5
+    random_unit_vector = SVector(sin(ω) * cos(δ), cos(ω) * cos(δ), sin(δ))
+
+    # tangent space basis
+    τ1 = random_unit_vector × normal_vector
+    τ2 = τ1 × normal_vector
+
+    ũᵀn = ũ' * normal_vector
+    ũc̃⁻ = ũ + c̃ * normal_vector
+    ũc̃⁺ = ũ - c̃ * normal_vector
+
+    Λ = SDiagonal(
+        abs(ũᵀn - c̃),
+        abs(ũᵀn),
+        abs(ũᵀn),
+        abs(ũᵀn),
+        abs(ũᵀn + c̃),
+    )
+
+    M = hcat(
+        SVector(1, ũc̃⁻[1], ũc̃⁻[2], ũc̃⁻[3], h̃ - c̃ * ũᵀn),
+        SVector(0, τ1[1], τ1[2], τ1[3], τ1' * ũ),
+        SVector(0, τ2[1], τ2[2], τ2[3], τ2' * ũ),
+        SVector(1, ũ[1], ũ[2], ũ[3], ũ' * ũ / 2 + Φ - _T_0 * _cv_d),
+        SVector(1, ũc̃⁺[1], ũc̃⁺[2], ũc̃⁺[3], h̃ + c̃ * ũᵀn),
+    )
+
+    Δρ = ρ⁺ - ρ⁻
+    Δρu = ρu⁺ - ρu⁻
+    Δρe = ρe⁺ - ρe⁻
+    Δstate = SVector(Δρ, Δρu[1], Δρu[2], Δρu[3], Δρe)
+
+    parent(fluxᵀn) .-= M * Λ * (M \ Δstate) / 2
 end
 end # module
