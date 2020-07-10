@@ -21,7 +21,9 @@ using ClimateMachine.Atmos:
     DryModel,
     NoPrecipitation,
     NoRadiation,
-    vars_state
+    vars_state,
+    RoeNumericalFlux
+
 using ClimateMachine.Orientations: NoOrientation
 using ClimateMachine.VariableTemplates: flattenednames
 using ClimateMachine.TurbulenceClosures
@@ -57,6 +59,7 @@ function main()
     # just to make it shorter and aligning
     Rusanov = RusanovNumericalFlux
     Central = CentralNumericalFluxFirstOrder
+    Roe = RoeNumericalFlux
 
     expected_error[Float64, 2, Rusanov, 1] = 1.1990999506538110e+01
     expected_error[Float64, 2, Rusanov, 2] = 2.0813000228865612e+00
@@ -68,6 +71,11 @@ function main()
     expected_error[Float64, 2, Central, 3] = 3.6935849488949657e-01
     expected_error[Float64, 2, Central, 4] = 8.3528804679907434e-03
 
+    expected_error[Float64, 2, Roe, 1] = 1.2849464627676848e+01
+    expected_error[Float64, 2, Roe, 2] = 1.3583900373811288e+00
+    expected_error[Float64, 2, Roe, 3] = 7.5128941031874466e-02
+    expected_error[Float64, 2, Roe, 4] = 2.1790343556828628e-03
+
     expected_error[Float64, 3, Rusanov, 1] = 3.7918869862613858e+00
     expected_error[Float64, 3, Rusanov, 2] = 6.5816485664822677e-01
     expected_error[Float64, 3, Rusanov, 3] = 2.0160333422867591e-02
@@ -77,6 +85,11 @@ function main()
     expected_error[Float64, 3, Central, 2] = 9.2513872939749997e-01
     expected_error[Float64, 3, Central, 3] = 1.1680141169828175e-01
     expected_error[Float64, 3, Central, 4] = 2.6414127301659534e-03
+
+    expected_error[Float64, 3, Roe, 1] = 4.0633574937225339e+00
+    expected_error[Float64, 3, Roe, 2] = 4.2956064690054790e-01
+    expected_error[Float64, 3, Roe, 3] = 2.3757857185729998e-02
+    expected_error[Float64, 3, Roe, 4] = 6.8907116635145798e-04
 
     expected_error[Float32, 2, Rusanov, 1] = 1.1990781784057617e+01
     expected_error[Float32, 2, Rusanov, 2] = 2.0813269615173340e+00
@@ -88,6 +101,11 @@ function main()
     expected_error[Float32, 2, Central, 3] = 3.7092915177345276e-01
     expected_error[Float32, 2, Central, 4] = 1.1543693393468857e-01
 
+    expected_error[Float32, 2, Roe, 1] = 1.2849506378173828e+01
+    expected_error[Float32, 2, Roe, 2] = 1.3582377433776855e+00
+    expected_error[Float32, 2, Roe, 3] = 7.6708398759365082e-02
+    expected_error[Float32, 2, Roe, 4] = 4.3787240982055664e-02
+
     expected_error[Float32, 3, Rusanov, 1] = 3.7918186187744141e+00
     expected_error[Float32, 3, Rusanov, 2] = 6.5816193819046021e-01
     expected_error[Float32, 3, Rusanov, 3] = 2.0893247798085213e-02
@@ -98,9 +116,14 @@ function main()
     expected_error[Float32, 3, Central, 3] = 1.1707859486341476e-01
     expected_error[Float32, 3, Central, 4] = 2.1001411601901054e-02
 
+    expected_error[Float32, 3, Roe, 1] = 4.0633840560913086e+00
+    expected_error[Float32, 3, Roe, 2] = 4.2954716086387634e-01
+    expected_error[Float32, 3, Roe, 3] = 2.4156048893928528e-02
+    expected_error[Float32, 3, Roe, 4] = 9.7980611026287079e-03
+
     @testset "$(@__FILE__)" begin
         for FT in (Float64, Float32), dims in (2, 3)
-            for NumericalFlux in (RusanovNumericalFlux, Central)
+            for NumericalFlux in (Roe, Rusanov, Central)
                 @info @sprintf """Configuration
                                   ArrayType     = %s
                                   FT        = %s
