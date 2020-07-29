@@ -1,4 +1,4 @@
-export SoilWaterModel, PrescribedWaterModel
+export SoilWaterModel, PrescribedWaterModel, get_water_content
 
 abstract type AbstractWaterModel <: AbstractSoilComponentModel end
 
@@ -14,19 +14,21 @@ The defaults are no moisture anywhere, for all time.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct PrescribedWaterModel{F1, F2} <: AbstractWaterModel
+struct PrescribedWaterModel{FN1, FN2} <: AbstractWaterModel
     "Augmented liquid fraction"
-    ϑ_l::F1
+    ϑ_l::FN1
     "Volumetric fraction of ice"
-    θ_ice::F2
+    θ_ice::FN2
 end
 
 """
-    PrescribedWaterModel(
-        ϑ_l::Function = (aux,t) -> eltype(aux)(0.0),
-        θ_ice::Function = (aux,t) -> eltype(aux)(0.0),
-    ) where {FT}
-
+    function PrescribedWaterModel(
+        ϑ_l::Function = (aux, t) -> eltype(aux)(0.0),
+        θ_ice::Function = (aux, t) -> eltype(aux)(0.0),
+    )
+        args = (ϑ_l, θ_ice)
+        return PrescribedWaterModel{typeof.(args)...}(args...)
+    end
 Outer constructor for the PrescribedWaterModel defining default values, and
 making it so changes to those defaults are supplied via keyword args.
 
@@ -38,11 +40,10 @@ needed by the heat model.
 function PrescribedWaterModel(
     ϑ_l::Function = (aux, t) -> eltype(aux)(0.0),
     θ_ice::Function = (aux, t) -> eltype(aux)(0.0),
-) where {FT}
+)
     args = (ϑ_l, θ_ice)
     return PrescribedWaterModel{typeof.(args)...}(args...)
 end
-
 
 """
     SoilWaterModel{FT, IF, VF, MF, HM, Fiϑl, Fiθi, BCD, BCN} <: AbstractWaterModel
@@ -61,8 +62,7 @@ liquid and ice form, and water content is conserved upon phase change.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SoilWaterModel{FT, IF, VF, MF, HM, Fiϑl, Fiθi, BCD, BCN} <:
-       AbstractWaterModel
+struct SoilWaterModel{FT, IF, VF, MF, HM, Fiϑl, Fiθi, BCD, BCN} <: AbstractWaterModel
     "Impedance Factor - will be 1 or ice dependent"
     impedance_factor::IF
     "Viscosity Factor - will be 1 or temperature dependent"
@@ -123,44 +123,101 @@ end
 
 """
     get_water_content(
+        water::SoilWaterModel,
         aux::Vars,
         state::Vars,
-        t::Real,
-        water::SoilWaterModel,
+        t::Real
     )
 
 Return the moisture variables for the balance law soil water model.
 """
 function get_water_content(
+    water::SoilWaterModel,
     aux::Vars,
     state::Vars,
-    t::Real,
-    water::SoilWaterModel,
+    t::Real
 )
-    return state.soil.water.ϑ_l, state.soil.water.θ_ice
+    FT = eltype(state)
+    return FT(state.soil.water.ϑ_l), FT(state.soil.water.θ_ice)
 end
 
 
 
 """
     get_water_content(
+        water::PrescribedWaterModel,
         aux::Vars,
         state::Vars,
-        t::Real,
-        water::PrescribedWaterModel,
+        t::Real
     )
 
 Return the moisture variables for the prescribed soil water model.
 """
 function get_water_content(
+    water::PrescribedWaterModel,
     aux::Vars,
     state::Vars,
-    t::Real,
-    water::PrescribedWaterModel,
+    t::Real
 )
+    FT = eltype(aux)
     ϑ_l = water.ϑ_l(aux, t)
     θ_ice = water.θ_ice(aux, t)
-    return ϑ_l, θ_ice
+    return FT(ϑ_l), FT(θ_ice)
+end
+
+
+
+
+"""
+    get_initial_water_content(
+        aux::Vars,
+        t::Real,
+        water::SoilWaterModel,
+    )
+
+Return the moisture variables for the balance law soil water model, not from state.
+"""
+#function get_initial_water_content(
+#    aux::Vars,
+#    t::Real,
+#    water::SoilWaterModel,
+#)
+#    return 
+#end
+
+
+
+"""
+    get_initial_water_content(
+        water::PrescribedWaterModel,
+        aux::Vars,
+        t::Real,
+    )
+
+Return the moisture variables for the prescribed soil water model.
+"""
+function get_initial_water_content(
+    water::PrescribedWaterModel,
+    aux::Vars,
+    t::Real
+)
+    FT = eltype(aux)
+    ϑ_l = water.ϑ_l(aux, t)
+    θ_ice = water.θ_ice(aux, t)
+    return FT(ϑ_l), FT(θ_ice)
+end
+
+
+"""
+"""
+function get_diffusive_water_flux(water::SoilWaterModel, diffusive::Vars, FT)
+    return diffusive.soil.water.K∇h
+end
+
+"""
+"""
+function get_diffusive_water_flux(water::PrescribedWaterModel, diffusive::Vars, FT)
+    return SVector{3, FT}(0, 0, 0)
 end
 
 
@@ -183,7 +240,7 @@ function soil_init_aux!(
     aux::Vars,
     geom::LocalGeometry,
 )
-    T = get_temperature(land.soil.heat)
+    T = get_initial_temperature(land.soil.heat, aux, 0.0)
     S_l = effective_saturation(
         soil.param_functions.porosity,
         water.initialϑ_l(aux),
@@ -217,7 +274,7 @@ function land_nodal_update_auxiliary_state!(
     aux::Vars,
     t::Real,
 )
-    T = get_temperature(land.soil.heat)
+    T = get_temperature(land.soil.heat,aux,state,t)
     S_l = effective_saturation(
         soil.param_functions.porosity,
         state.soil.water.ϑ_l,
