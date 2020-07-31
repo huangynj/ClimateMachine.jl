@@ -2,6 +2,8 @@
 save_subdomain_temperature!(m, state, aux) =
     save_subdomain_temperature!(m,m.moisture,state,aux)
 
+using KernelAbstractions: @print
+
 function save_subdomain_temperature!(
     m::AtmosModel,
     moist::EquilMoist,
@@ -27,7 +29,7 @@ function save_subdomain_temperature!(
             ts_up = LiquidIcePotTempSHumEquil_given_pressure(m.param_set, θ_liq_up, p, q_tot_up)
             aux.turbconv.updraft[i].T = air_temperature(ts_up)
         catch
-            println("************************************* sat adjust failed (updraft)")
+            @print("************************************* sat adjust failed (updraft)")
             @show i
             @show ts_gm
             @show p,ρ
@@ -40,9 +42,9 @@ function save_subdomain_temperature!(
         ts_en = LiquidIcePotTempSHumEquil_given_pressure(m.param_set, θ_liq_en, p, q_tot_en)
         aux.turbconv.environment.T = air_temperature(ts_en)
     catch
-        println("************************************* sat adjust failed (env)")
+        @print("************************************* sat adjust failed (env)")
         for i in 1:N_up
-            @show i
+            @print i
             @show state.turbconv.updraft[i].ρa
             @show state.turbconv.updraft[i].ρaw
             @show state.turbconv.updraft[i].ρaθ_liq

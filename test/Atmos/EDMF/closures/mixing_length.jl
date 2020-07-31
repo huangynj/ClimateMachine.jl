@@ -2,7 +2,7 @@
 include(joinpath("..","helper_funcs", "diagnose_environment.jl"))
 
 function mixing_length(
-    m::AtmosModel{FT, N},
+    m::AtmosModel{FT},
     ml::MixingLengthModel,
     state::Vars,
     diffusive::Vars,
@@ -10,7 +10,7 @@ function mixing_length(
     t::Real,
     δ::AbstractArray{FT},
     εt::AbstractArray{FT},
-) where {FT, N}
+) where {FT}
 
     # need to code / use the functions: obukhov_length, ustar, ϕ_m
     m.turbconv.surface
@@ -26,8 +26,6 @@ function mixing_length(
     z = altitude(m, aux)
     _grav = FT(grav(m.param_set))
     ρinv = 1 / gm.ρ
-
-    fill!(ml.L, 0)
 
     # precompute
     en_area  = environment_area(state, aux, N_upd)
@@ -53,9 +51,9 @@ function mixing_length(
 
     # compute L1
     if Nˢ_eff > eps(FT)
-        ml.L[1] = min(sqrt(ml.c_b * tke) / Nˢ_eff, 1e6)
+        L_1 = min(sqrt(ml.c_b * tke) / Nˢ_eff, 1e6)
     else
-        ml.L[1] = 1.0e6
+        L_1 = 1.0e6
     end
 
     # compute L2 - law of the wall  - YAIR define tke_surf
@@ -63,14 +61,14 @@ function mixing_length(
     θ_liq_cv_surf, q_tot_cv_surf, θ_liq_q_tot_cv_surf, tke_surf =
             env_surface_covariances(m.turbconv.surface, m.turbconv, m, gm, gm_a)
     if obukhov_length < FT(0)
-        ml.L[2] =
+        L_2 =
             (
                 ml.κ * z / (
                     sqrt(tke_surf) / ustar / ustar
                 ) * ml.c_m
             ) * min((FT(1) - FT(100) * z / obukhov_length)^FT(0.2), 1 / ml.κ)
     else
-        ml.L[2] =
+        L_2 =
             ml.κ * z / (
                 sqrt(tke_surf) / ustar / ustar
             ) * ml.c_k
@@ -99,8 +97,8 @@ function mixing_length(
     else
         l_entdet = FT(0)
     end
-    ml.L[3] = l_entdet
+    L_3 = l_entdet
 
-    l_mix = lamb_smooth_minimum(ml.L)
+    l_mix = lamb_smooth_minimum(SVector(L_1,L_2,L_3))
     return l_mix
 end;

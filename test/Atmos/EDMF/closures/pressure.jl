@@ -2,7 +2,7 @@
 include(joinpath("..","helper_funcs", "diagnose_environment.jl"))
 
 function perturbation_pressure(
-    m::AtmosModel{FT, N},
+    m::AtmosModel{FT},
     press::PressureModel,
     state::Vars,
     diffusive::Vars,
@@ -10,7 +10,7 @@ function perturbation_pressure(
     t::Real,
     direction,
     i::Int,
-) where {FT, N}
+) where {FT}
 
     # Alias convention:
     gm = state

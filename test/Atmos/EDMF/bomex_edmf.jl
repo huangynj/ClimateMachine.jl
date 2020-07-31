@@ -429,7 +429,7 @@ function config_bomex(FT, N, nelem_vert, zmax)
 
     N_updrafts = 2
     N_quad = 3
-    turbconv = EDMF{FT, N_updrafts, N_quad}()
+    turbconv = EDMF(FT, N_updrafts, N_quad)
 
     # Assemble source components
     source = (
@@ -590,37 +590,44 @@ function main()
         return OrderedDict(state_vars..., aux_vars...);
     end
     all_data = [dict_of_states(solver_config)]
+    time_data = FT[0]
     N_up = n_updrafts(driver_config.bl.turbconv)
 
     # for tc in flattened_tup_chain(vars_state(driver_config.bl, Prognostic(), FT))
-    function plot_results(solver_config, all_data, subfolder, i)
+    function plot_results(solver_config, all_data, time_data, subfolder)
         FT = eltype(solver_config.Q)
         z = get_z(solver_config.dg.grid)
         mkpath(joinpath(output_dir, subfolder))
         for fn in flattenednames(vars_state(solver_config.dg.balance_law, Prognostic(), FT))
             file_name = "prog_"*replace(fn, "."=>"_")
-            export_plot_snapshot(
+            export_plot(
                 z,
-                all_data[i],
+                all_data,
                 (fn,),
-                joinpath(output_dir, subfolder, "$(file_name).png"),
-                "z [m]",
+                joinpath(output_dir, subfolder, "$(file_name).png");
+                xlabel=fn,
+                ylabel="z [m]",
+                time_data=time_data,
+                round_digits=5,
             );
         end
         for fn in flattenednames(vars_state(solver_config.dg.balance_law, Auxiliary(), FT))
             file_name = "aux_"*replace(fn, "."=>"_")
-            export_plot_snapshot(
+            export_plot(
                 z,
-                all_data[i],
+                all_data,
                 (fn,),
-                joinpath(output_dir, subfolder, "$(file_name).png"),
-                "z [m]",
+                joinpath(output_dir, subfolder, "$(file_name).png");
+                xlabel=fn,
+                ylabel="z [m]",
+                time_data=time_data,
+                round_digits=5,
             );
         end
     end
     plot_ICs = true
     if plot_ICs
-        plot_results(solver_config, all_data, "ICs", 1)
+        plot_results(solver_config, all_data, time_data, "ICs")
     end
 
     n_outputs = 5;
@@ -629,7 +636,6 @@ function main()
     # This equates to exports every ceil(Int, timeend/n_outputs) time-step:
     every_x_simulation_time = ceil(Int, timeend / n_outputs);
 
-    time_data = FT[0]
     cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
         push!(all_data, dict_of_states(solver_config))
         push!(time_data, gettime(solver_config.solver))
@@ -657,7 +663,7 @@ function main()
     push!(all_data, dict_of_states(solver_config))
     push!(time_data, gettime(solver_config.solver))
 
-    plot_results(solver_config, all_data, "t_end", length(all_data))
+    plot_results(solver_config, all_data, time_data, "runtime")
 
     @show kernel_calls
     # @test all(values(kernel_calls))

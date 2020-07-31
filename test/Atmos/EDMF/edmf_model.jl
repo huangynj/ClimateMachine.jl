@@ -2,9 +2,7 @@
 
 #### Entrainment-Detrainment model
 
-Base.@kwdef struct EntrainmentDetrainment{FT}
-    "Fractional scales"
-    Λ::MArray{Tuple{2}, FT} = MArray{Tuple{2}, FT}([0, 0])
+Base.@kwdef struct EntrainmentDetrainment{FT<:AbstractFloat}
     "Entrainmnet TKE scale"
     c_λ::FT = 0.3
     "Entrainment factor"
@@ -21,7 +19,7 @@ Base.@kwdef struct EntrainmentDetrainment{FT}
     χ::FT = 0.25
 end
 
-Base.@kwdef struct SurfaceModel{FT}
+Base.@kwdef struct SurfaceModel{FT<:AbstractFloat}
     "Surface temperature ‵[k]‵"
     surface_T::FT = 300.4
     "Surface liquid water potential temperature ‵[k]‵"
@@ -47,7 +45,7 @@ Base.@kwdef struct SurfaceModel{FT}
 
 end
 
-Base.@kwdef struct PressureModel{FT}
+Base.@kwdef struct PressureModel{FT<:AbstractFloat}
     "Pressure drag"
     α_d::FT = 10.0
     "Pressure advection"
@@ -56,9 +54,7 @@ Base.@kwdef struct PressureModel{FT}
     α_b::FT = 0.12
 end
 
-Base.@kwdef struct MixingLengthModel{FT}
-    "Mixing lengths"
-    L::MArray{Tuple{3}, FT} = MArray{Tuple{3}, FT}([0, 0, 0])
+Base.@kwdef struct MixingLengthModel{FT<:AbstractFloat}
     "dissipation coefficient"
     c_d::FT = 0.22
     "Eddy Viscosity"
@@ -73,47 +69,73 @@ Base.@kwdef struct MixingLengthModel{FT}
     κ::FT = 0.4
 end
 
-Base.@kwdef struct MicrophysicsModel{FT}
-    "dry stract"
-    dry::MArray{Tuple{6}, FT} = MArray{Tuple{6}, FT}([0, 0, 0, 0, 0, 0])
-    "cloudy stract"
-    cloudy::MArray{Tuple{6}, FT} = MArray{Tuple{6}, FT}([0, 0, 0, 0, 0, 0])
-    "enviromental cloud fraction"
-    cf_initial::FT = 0.0 # need to define a function for cf
-    "Subdomain statistical mmodel"
-    statistical_model::String = "SubdomainMean"
-    # now N_quad is replacing quadrature order and is passed from single_stack_test.jl
+abstract type AbstractStatisticalModel end
+struct SubdomainMean <: AbstractStatisticalModel end
+struct GaussQuad <: AbstractStatisticalModel end
+struct LogNormalQuad <: AbstractStatisticalModel end
 
-    # "quadrature order" # can we code it that if order is 1 than we get mean ?  do we need the gaussian option?
-    # quadrature_order::FT = 3# yair needs to be a string: "mean", "gaussian quadrature", lognormal quadrature"
+Base.@kwdef struct MicrophysicsModel{FT<:AbstractFloat, SM}
+    "enviromental cloud fraction"
+    cf_initial::FT
+    "Subdomain statistical model"
+    statistical_model::SM
 end
 
-Base.@kwdef struct Environment{FT, N_quad} <: BalanceLaw end
+function MicrophysicsModel(FT;
+        cf_initial = FT(0.0),
+        statistical_model = SubdomainMean(),
+    )
+    args =(cf_initial,statistical_model)
+    return MicrophysicsModel{FT,
+        typeof(statistical_model)}(args...)
+end
 
-Base.@kwdef struct Updraft{FT} <: BalanceLaw end
+Base.@kwdef struct Environment{FT<:AbstractFloat, N_quad} <: BalanceLaw end
 
-Base.@kwdef struct EDMF{FT, N, N_quad} <: TurbulenceConvectionModel
+Base.@kwdef struct Updraft{FT<:AbstractFloat} <: BalanceLaw end
+
+Base.@kwdef struct EDMF{FT<:AbstractFloat, N, UP, EN, ED, P, S, MP, ML} <: TurbulenceConvectionModel
     "Updrafts"
-    updraft::NTuple{N, Updraft{FT}} = ntuple(i -> Updraft{FT}(), N)
+    updraft::UP
     "Environment"
-    environment::Environment{FT, N_quad} = Environment{FT, N_quad}()
+    environment::EN
     "Entrainment-Detrainment model"
-    entr_detr::EntrainmentDetrainment{FT} = EntrainmentDetrainment{FT}()
+    entr_detr::ED
     "Pressure model"
-    pressure::PressureModel{FT} = PressureModel{FT}()
+    pressure::P
     "Surface model"
-    surface::SurfaceModel{FT} = SurfaceModel{FT}()
-    "Surface model"
-    micro_phys::MicrophysicsModel{FT} = MicrophysicsModel{FT}()
+    surface::S
+    "Microphysics model"
+    micro_phys::MP
     "Mixing length model"
-    mix_len::MixingLengthModel{FT} = MixingLengthModel{FT}()
+    mix_len::ML
+end
+
+function EDMF(FT, N, N_quad;
+    updraft = ntuple(i -> Updraft{FT}(), N),
+    environment = Environment{FT,N_quad}(),
+    entr_detr = EntrainmentDetrainment{FT}(),
+    pressure = PressureModel{FT}(),
+    surface = SurfaceModel{FT}(),
+    micro_phys = MicrophysicsModel(FT),
+    mix_len = MixingLengthModel{FT}(),
+    )
+    args = (updraft,
+    environment,
+    entr_detr,
+    pressure,
+    surface,
+    micro_phys,
+    mix_len)
+    return EDMF{FT, N, typeof.(args)...}(args...)
 end
 
 
 import ClimateMachine.TurbulenceConvection:
     turbconv_sources
 
-n_updrafts(m::EDMF{FT, N, N_quad}) where {FT, N, N_quad} = N
+n_updrafts(m::EDMF{FT, N}) where {FT, N} = N
+n_quad_points(m::Environment{FT, N_quad}) where {FT, N_quad} = N_quad
 turbconv_sources(m::EDMF) = (turbconv_source!,)
 
 struct EDMFBCs <: TurbConvBC end

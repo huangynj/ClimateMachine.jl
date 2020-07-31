@@ -297,7 +297,7 @@ function vars_state(m::EDMF, st::GradientFlux, FT)
         updraft::vars_state(m.updraft, st, FT)
     )
 end
-
+using KernelAbstractions.Extras: @unroll
 function init_aux_turbconv!(
     turbconv::EDMF{FT, N},
     m::AtmosModel{FT},
@@ -311,7 +311,6 @@ function init_aux_turbconv!(
     up_a = aux.turbconv.updraft
 
     en_a.cld_frac = eps(FT)
-
     en_a.buoyancy = eps(FT)
     for i in 1:N
         up_a[i].buoyancy = eps(FT)

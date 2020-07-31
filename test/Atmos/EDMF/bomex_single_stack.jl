@@ -429,7 +429,7 @@ function config_bomex(FT, N, nelem_vert, zmax)
 
     N_updrafts = 2
     N_quad = 3
-    # turbconv = EDMF{FT, N_updrafts, N_quad}()
+    # turbconv = EDMF(FT, N_updrafts, N_quad)
     # turbconv_bcs = EDMFBCs()
     turbconv = NoTurbConv()
     turbconv_bcs = NoTurbConvBC()

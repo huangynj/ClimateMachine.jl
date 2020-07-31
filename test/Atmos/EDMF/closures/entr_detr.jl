@@ -2,13 +2,13 @@
 include(joinpath("..","helper_funcs", "diagnose_environment.jl"))
 
 function entr_detr(
-    m::AtmosModel{FT, N},
+    m::AtmosModel{FT},
     entr::EntrainmentDetrainment,
     state::Vars,
     aux::Vars,
     t::Real,
     i::Int,
-) where {FT, N}
+) where {FT}
 
     # Alias convention:
     gm = state
@@ -18,7 +18,6 @@ function entr_detr(
     en_a = aux.turbconv.environment
     up_a = aux.turbconv.updraft
 
-    fill!(entr.Λ, 0)
     N_upd = n_updrafts(m.turbconv)
     ρinv = 1 / gm.ρ
     up_area = up[i].ρa / gm.ρ
@@ -34,11 +33,12 @@ function entr_detr(
     D_ε, D_δ, M_δ, M_ε =
         nondimensional_exchange_functions(m, entr, state, aux, t, i)
 
-    entr.Λ[1] = abs(Δb/Δw)
-    entr.Λ[2] = entr.c_λ * abs(Δb / (max(en.ρatke,0) + sqrt(eps(FT))))
+    Λ_1 = abs(Δb/Δw)
+    Λ_2 = entr.c_λ * abs(Δb / (max(en.ρatke,0) + sqrt(eps(FT))))
+    Λ = SVector(Λ_1, Λ_2)
     lower_bound = FT(0.1) # need to be moved ?
     upper_bound = FT(0.0005)
-    # λ = lamb_smooth_minimum(entr.Λ, lower_bound, upper_bound)
+    # λ = lamb_smooth_minimum(Λ, lower_bound, upper_bound)
     λ = abs(Δb/Δw)
 
     # compute entrainment/detrainmnet components

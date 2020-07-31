@@ -60,7 +60,6 @@ function compute_buoyancy_gradients(
         state,
         aux,
         t,
-        m.turbconv.micro_phys.statistical_model,
     )
 
     prefactor = _grav * (_R_d * gm.ρ/gm_p * Π)
@@ -125,7 +124,7 @@ end;
 # end;
 
 function compute_windspeed(
-    ss::AtmosModel{FT, N},
+    ss::AtmosModel{FT},
     m::MixingLengthModel,
     source::Vars,
     state::Vars,
@@ -133,7 +132,7 @@ function compute_windspeed(
     aux::Vars,
     t::Real,
     direction,
-) where {FT, N}
+) where {FT}
     windspeed_min = eps(FT)
     return max(hypot(gm.u[1], gm.u[2]), windspeed_min)
 end;
@@ -186,7 +185,6 @@ end;
 #         state,
 #         aux,
 #         t,
-#         m.turbconv.micro_phys.statistical_model,
 #     )
 #     ∂b∂ρ = -_grav / gm.ρ
 
