@@ -355,8 +355,8 @@ function SingleStackConfiguration(
 
     print_model_info(model)
 
-    xmin, xmax = zero(FT), one(FT)
-    ymin, ymax = zero(FT), one(FT)
+    xmin, xmax = zero(FT), FT(500)
+    ymin, ymax = zero(FT), FT(500)
     brickrange = (
         grid1d(xmin, xmax, nelem = 1),
         grid1d(ymin, ymax, nelem = 1),

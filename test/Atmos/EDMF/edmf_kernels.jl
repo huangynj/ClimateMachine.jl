@@ -6,8 +6,8 @@
 # "tendency"      = - div("second order flux" + "first order flux") + "non-conservative source"
 # \frac{∂ F}{∂ t} = - ∇ ⋅ ( F2 + F1 )                               + S
 
-# where F1 is the flux-componenet that has no gradient term
-# where F2 is the flux-componenet that has a  gradient term
+# where F1 is the flux-component that has no gradient term
+# where F2 is the flux-component that has a  gradient term
 
 # -------------- Subdomains:
 # The model has a grid mean (the dycore stats vector),i=1:N updrafts and a single environment subdomain (subscript "0")
@@ -67,9 +67,9 @@
 #  - `K`        is the eddy diffusivity
 #  - `↑`        is the upwards pointing unit vector
 #  - `b`        is the buoyancy
-#  - `E_{i0}`   is the entrainment rate from the enviroment into i
-#  - `Δ_{i0}`   is the detrainment rate from i to the enviroment
-#  - `ϕ'ψ'`     is a shorthand for \overline{ϕ'ψ'}_0 the enviromental covariance of ϕ and ψ
+#  - `E_{i0}`   is the entrainment rate from the environment into i
+#  - `Δ_{i0}`   is the detrainment rate from i to the environment
+#  - `ϕ'ψ'`     is a shorthand for \overline{ϕ'ψ'}_0 the environmental covariance of ϕ and ψ
 #  - `D`        is a covariance dissipation
 #  - `S_{ϕ,i}`  is a source of ϕ in the i'th subdomain
 #  - `∂_z`      is the vertical partial derivative
@@ -546,7 +546,7 @@ function compute_gradient_flux!(
 
     ρinv = 1 / gm.ρ
     # negative signs here as we have a '-' sign in BL form leading to + K∂ϕ/∂z on the RHS
-    # first moment grid mean comming from enviroment gradients only
+    # first moment grid mean coming from environment gradients only
     en_d.∇θ_liq = en_∇t.θ_liq
     en_d.∇q_tot = en_∇t.q_tot
     en_d.∇w = en_∇t.w
@@ -633,7 +633,7 @@ function turbconv_source!(
 
     #     # environment second moments:
 
-    #     # covariances entrinament sources from the i'th updraft
+    #     # covariances entrainment sources from the i'th updraft
     #     # need to compute e_int in updraft and gridmean for entrainment
     #     # -- if ϕ'ψ' is tke and ϕ,ψ are both w than a factor 0.5 appears in the εt and δ terms
     #     # Covar_Source      +=  ρaw⋅δ⋅(ϕ_up-ϕ_en) ⋅ (ψ_up-ψ_en)
@@ -729,7 +729,7 @@ function flux_first_order!(
 
     # positive sign here as we have a '-' sign in BL form leading to - ∂ρwϕ/∂z on the RHS
     # updrafts
-    # in GCM implamntation we need to think about grid mean advection
+    # in GCM implementation we need to think about grid mean advection
     ρinv = 1 / gm.ρ
     for i in 1:N
         ρa_i = enforce_unit_bounds(up[i].ρa)
@@ -741,7 +741,7 @@ function flux_first_order!(
     end
 end;
 
-# in the EDMF second order (diffusive) fluxes exist only in the grid mean and the enviroment
+# in the EDMF second order (diffusive) fluxes exist only in the grid mean and the environment
 function flux_second_order!(
     turbconv::EDMF{FT, N},
     m::AtmosModel{FT},

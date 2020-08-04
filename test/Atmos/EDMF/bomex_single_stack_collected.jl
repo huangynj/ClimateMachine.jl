@@ -99,6 +99,8 @@ import ClimateMachine.BalanceLaws:
 import ClimateMachine.Atmos: atmos_source!
 using ClimateMachine.Atmos: altitude, thermo_state
 
+include("single_stack_plothelper.jl")
+
 """
   Bomex Geostrophic Forcing (Source)
 """
@@ -532,6 +534,23 @@ function main()
     )
     dgn_config = config_diagnostics(driver_config)
 
+
+    output_dir = ClimateMachine.Settings.output_dir
+    @show output_dir
+    all_data = [dict_of_states(solver_config)]
+    time_data = FT[0]
+
+    # Define the number of outputs from `t0` to `timeend`
+    n_outputs = 8;
+    # This equates to exports every ceil(Int, timeend/n_outputs) time-step:
+    every_x_simulation_time = ceil(Int, timeend / n_outputs);
+
+    cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
+        push!(all_data, dict_of_states(solver_config))
+        push!(time_data, gettime(solver_config.solver))
+        nothing
+    end;
+
     cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do
         Filters.apply!(
             solver_config.Q,
@@ -568,12 +587,14 @@ function main()
     result = ClimateMachine.invoke!(
         solver_config;
         diagnostics_config = dgn_config,
-        user_callbacks = (cbtmarfilter, cb_check_cons),
+        user_callbacks = (cbtmarfilter, cb_check_cons, cb_data_vs_time),
         check_euclidean_distance = true,
     )
 
     @test !isnan(norm(Q))
-    return solver_config
+    return solver_config, all_data, time_data
 end
 
-solver_config = main()
+solver_config, all_data, time_data = main()
+
+plot_results(solver_config, all_data, time_data, joinpath(clima_dir, "output", "steady_sol"))

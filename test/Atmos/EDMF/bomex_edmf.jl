@@ -65,7 +65,6 @@ using ClimateMachine.GenericCallbacks
 using ClimateMachine.Mesh.Filters
 using ClimateMachine.Mesh.Grids
 using ClimateMachine.ODESolvers
-using ClimateMachine.SingleStackUtils
 using ClimateMachine.Thermodynamics
 using ClimateMachine.VariableTemplates
 using ClimateMachine.BalanceLaws:
@@ -89,13 +88,6 @@ using CLIMAParameters.Planet: e_int_v0, grav, day, R_d, R_v, molmass_ratio
 struct EarthParameterSet <: AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
 
-# ----------------- Quick and dirty
-const clima_dir = dirname(dirname(pathof(ClimateMachine)));
-using Plots
-include(joinpath(clima_dir, "docs", "plothelpers.jl"));
-using OrderedCollections
-# -----------------
-
 import ClimateMachine.BalanceLaws:
     vars_state,
     flux_first_order!,
@@ -106,6 +98,7 @@ import ClimateMachine.BalanceLaws:
 import ClimateMachine.Atmos: source!, atmos_source!, altitude
 import ClimateMachine.Atmos: flux_second_order!, thermo_state
 
+include("single_stack_plothelper.jl")
 include("edmf_model.jl")
 include("edmf_kernels.jl")
 
@@ -427,7 +420,7 @@ function config_bomex(FT, N, nelem_vert, zmax)
 
     f_coriolis = FT(0.376e-4) # Coriolis parameter
 
-    N_updrafts = 2
+    N_updrafts = 1
     N_quad = 3
     turbconv = EDMF(FT, N_updrafts, N_quad)
 
@@ -522,9 +515,8 @@ function main()
     FT = Float32
 
     # DG polynomial order
-    N = 4
-    nelem_vert = 10
-    # nelem_vert = 20
+    N = 1
+    nelem_vert = 50
 
     # Prescribe domain parameters
     zmax = FT(3000)
@@ -544,6 +536,7 @@ function main()
         driver_config,
         init_on_cpu = true,
         Courant_number = CFLmax,
+        CFL_direction = VerticalDirection(),
     )
     dgn_config = config_diagnostics(driver_config)
 
@@ -574,70 +567,22 @@ function main()
     grid = driver_config.grid
     output_dir = ClimateMachine.Settings.output_dir
     @show output_dir
-    z = get_z(grid)
-    function dict_of_states(solver_config)
-        state_vars = SingleStackUtils.get_vars_from_nodal_stack(
-            solver_config.dg.grid,
-            solver_config.Q,
-            vars_state(solver_config.dg.balance_law, Prognostic(), FT),
-        )
-        aux_vars = SingleStackUtils.get_vars_from_nodal_stack(
-            solver_config.dg.grid,
-            solver_config.dg.state_auxiliary,
-            vars_state(solver_config.dg.balance_law, Auxiliary(), FT),
-            exclude = ["z"],
-        )
-        return OrderedDict(state_vars..., aux_vars...);
-    end
     all_data = [dict_of_states(solver_config)]
     time_data = FT[0]
-    N_up = n_updrafts(driver_config.bl.turbconv)
 
-    # for tc in flattened_tup_chain(vars_state(driver_config.bl, Prognostic(), FT))
-    function plot_results(solver_config, all_data, time_data, subfolder)
-        FT = eltype(solver_config.Q)
-        z = get_z(solver_config.dg.grid)
-        mkpath(joinpath(output_dir, subfolder))
-        for fn in flattenednames(vars_state(solver_config.dg.balance_law, Prognostic(), FT))
-            file_name = "prog_"*replace(fn, "."=>"_")
-            export_plot(
-                z,
-                all_data,
-                (fn,),
-                joinpath(output_dir, subfolder, "$(file_name).png");
-                xlabel=fn,
-                ylabel="z [m]",
-                time_data=time_data,
-                round_digits=5,
-            );
-        end
-        for fn in flattenednames(vars_state(solver_config.dg.balance_law, Auxiliary(), FT))
-            file_name = "aux_"*replace(fn, "."=>"_")
-            export_plot(
-                z,
-                all_data,
-                (fn,),
-                joinpath(output_dir, subfolder, "$(file_name).png");
-                xlabel=fn,
-                ylabel="z [m]",
-                time_data=time_data,
-                round_digits=5,
-            );
-        end
-    end
     plot_ICs = true
     if plot_ICs
-        plot_results(solver_config, all_data, time_data, "ICs")
+        plot_results(solver_config, all_data, time_data, joinpath(output_dir, "ICs"))
     end
 
-    n_outputs = 5;
     # Define the number of outputs from `t0` to `timeend`
-
+    n_outputs = 8;
     # This equates to exports every ceil(Int, timeend/n_outputs) time-step:
     every_x_simulation_time = ceil(Int, timeend / n_outputs);
 
     cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
         push!(all_data, dict_of_states(solver_config))
+        @show gettime(solver_config.solver)
         push!(time_data, gettime(solver_config.solver))
         nothing
     end;
@@ -663,12 +608,12 @@ function main()
     push!(all_data, dict_of_states(solver_config))
     push!(time_data, gettime(solver_config.solver))
 
-    plot_results(solver_config, all_data, time_data, "runtime")
+    plot_results(solver_config, all_data, time_data, joinpath(output_dir, "runtime"))
 
     @show kernel_calls
     # @test all(values(kernel_calls))
     @test !isnan(norm(Q))
-    return time_data, all_data
+    return solver_config
 end
 
 time_data, all_data = main()

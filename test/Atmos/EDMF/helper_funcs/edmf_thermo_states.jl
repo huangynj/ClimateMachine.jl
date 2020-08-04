@@ -13,8 +13,12 @@ function save_subdomain_temperature!(
     N_up = n_updrafts(m.turbconv)
     ts_gm = thermo_state(m, state, aux)
     p = air_pressure(ts_gm)
-    θ_liq_en = liquid_ice_pottemp(ts_gm)
-    q_tot_en = total_specific_humidity(ts_gm)
+
+    θ_liq_gm = liquid_ice_pottemp(ts_gm)
+    a_en = 1 - sum([state.turbconv.updraft[j].ρa for j in 1:N_up])/ state.ρ
+    θ_liq_en = (θ_liq_gm - sum([state.turbconv.updraft[j].ρaθ_liq/state.ρ for j in 1:N_up]))/a_en
+    q_tot_gm = total_specific_humidity(ts_gm)
+    q_tot_en = (q_tot_gm - sum([state.turbconv.updraft[j].ρaq_tot/state.ρ for j in 1:N_up]))/a_en
     ρ = state.ρ
     ρinv = 1/state.ρ
     for i in 1:N_up
@@ -23,8 +27,6 @@ function save_subdomain_temperature!(
         ρaq_tot_up = state.turbconv.updraft[i].ρaq_tot
         θ_liq_up = ρaθ_liq_up / ρa_up
         q_tot_up = ρaq_tot_up / ρa_up
-        θ_liq_en -= ρaθ_liq_up*ρinv
-        q_tot_en -= ρaq_tot_up*ρinv
         try
             ts_up = LiquidIcePotTempSHumEquil_given_pressure(m.param_set, θ_liq_up, p, q_tot_up)
             aux.turbconv.updraft[i].T = air_temperature(ts_up)
@@ -45,6 +47,8 @@ function save_subdomain_temperature!(
         @print("************************************* sat adjust failed (env)")
         for i in 1:N_up
             @print i
+            @show θ_liq_en
+            @show θ_liq_gm
             @show state.turbconv.updraft[i].ρa
             @show state.turbconv.updraft[i].ρaw
             @show state.turbconv.updraft[i].ρaθ_liq
