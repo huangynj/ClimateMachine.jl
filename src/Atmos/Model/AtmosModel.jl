@@ -745,6 +745,9 @@ function init_state_prognostic!(
 end
 
 struct RoeNumericalFlux <: NumericalFluxFirstOrder end
+
+roe_average(ρ⁻, ρ⁺, var⁻, var⁺) = (sqrt(ρ⁻) * var⁻ + sqrt(ρ⁺) * var⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
+
 function numerical_flux_first_order!(
     numerical_flux::RoeNumericalFlux,
     balance_law::AtmosModel,
@@ -782,6 +785,7 @@ function numerical_flux_first_order!(
     ρ⁻ = state_conservative⁻.ρ
     ρu⁻ = state_conservative⁻.ρu
     ρe⁻ = state_conservative⁻.ρe
+    ts⁻ = thermo_state(balance_law, balance_law.moisture, state_conservative⁻, state_auxiliary⁻)
 
     u⁻ = ρu⁻ / ρ⁻
     p⁻ = pressure(
@@ -790,11 +794,14 @@ function numerical_flux_first_order!(
         state_conservative⁻,
         state_auxiliary⁻,
     )
-    h⁻ = (ρe⁻ + p⁻) / ρ⁻
+    e⁻ = ρe⁻ / ρ⁻
+    h⁻ = total_specific_enthalpy(ts⁻, e⁻)
+    c⁻ = soundspeed_air(ts⁻)
 
     ρ⁺ = state_conservative⁺.ρ
     ρu⁺ = state_conservative⁺.ρu
     ρe⁺ = state_conservative⁺.ρe
+    ts⁺ = thermo_state(balance_law, balance_law.moisture, state_conservative⁺, state_auxiliary⁺)
 
     u⁺ = ρu⁺ / ρ⁺
     p⁺ = pressure(
@@ -803,11 +810,14 @@ function numerical_flux_first_order!(
         state_conservative⁺,
         state_auxiliary⁺,
     )
-    h⁺ = (ρe⁺ + p⁺) / ρ⁺
+    e⁺ = ρe⁺ / ρ⁺
+    h⁺ = total_specific_enthalpy(ts⁺, e⁺)
+    c⁺ = soundspeed_air(ts⁺)
 
-    ũ = (sqrt(ρ⁻) * u⁻ + sqrt(ρ⁺) * u⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
-    h̃ = (sqrt(ρ⁻) * h⁻ + sqrt(ρ⁺) * h⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
+    ũ = roe_average(ρ⁻, ρ⁺, u⁻, u⁺)
+    h̃ = roe_average(ρ⁻, ρ⁺, h⁻, h⁺)
     c̃ = sqrt((γ - 1) * (h̃ - ũ' * ũ / 2 - Φ + _cv_d * _T_0))
+    #c̃ = sqrt(roe_average(ρ⁻, ρ⁺, c⁻ ^ 2, c⁺ ^ 2))
 
     # chosen by fair dice roll
     # guaranteed to be random
