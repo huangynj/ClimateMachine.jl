@@ -30,7 +30,7 @@ struct ConstantHyperDiffusion{dim, dir, FT} <: HyperDiffusionProblem
     D::SMatrix{3, 3, FT, 9}
 end
 
-function init_hyperdiffusion_tensor!(
+function nodal_init_hyperdiffusion_tensor!(
     problem::ConstantHyperDiffusion,
     aux::Vars,
     geom::LocalGeometry,
