@@ -28,10 +28,9 @@ using ClimateMachine.SingleStackUtils
 using ClimateMachine.Orientations:
     Orientation,
     FlatOrientation,
-    orientation_nodal_init_aux!,
+    init_aux!,
     vertical_unit_vector,
-    projection_tangential,
-    init_aux!
+    projection_tangential
 
 import ClimateMachine.BalanceLaws:
     vars_state,
@@ -131,7 +130,7 @@ function init_state_auxiliary!(
         state_auxiliary,
         grid,
     )
-end
+end;
 
 function init_state_prognostic!(
     m::BurgersEquation,
