@@ -535,6 +535,7 @@ function invoke!(
     check_euclidean_distance = false,
     adjustfinalstep = false,
     user_info_callback = () -> nothing,
+    numberofsteps::Int = 0,
 )
     mpicomm = solver_config.mpicomm
     dg = solver_config.dg
@@ -649,6 +650,7 @@ function invoke!(
         timeend = timeend,
         callbacks = callbacks,
         adjustfinalstep = adjustfinalstep,
+        numberofsteps = numberofsteps,
     )
     @toc solve!
 
