@@ -208,7 +208,7 @@ function surface_temperature_variation(state,aux,t)
     return air_temperature(TS)
 end
 
-function config_nishizawa_sf(FT, N, resolution, xmax, ymax, zmax)
+function config_problem(FT, N, resolution, xmax, ymax, zmax)
 
     ics = init_problem!     # Initial conditions
 
@@ -333,7 +333,7 @@ function main()
     timeend = FT(3600 * 9)
     CFLmax = FT(0.4)
 
-    driver_config = config_nishizawa_sf(FT, N, resolution, xmax, ymax, zmax)
+    driver_config = config_problem(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(
         t0,
         timeend,
