@@ -588,11 +588,11 @@ function main()
     # This equates to exports every ceil(Int, timeend/n_outputs) time-step:
     every_x_simulation_time = ceil(Int, timeend / n_outputs);
 
-    # cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
     step = [0]
-    cb_data_vs_time = GenericCallbacks.EveryXSimulationSteps(1) do
-        # push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
-        # push!(time_data, gettime(solver_config.solver))
+    cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
+    # cb_data_vs_time = GenericCallbacks.EveryXSimulationSteps(1) do
+        push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
+        push!(time_data, gettime(solver_config.solver))
         step[1]+=1
         @show gettime(solver_config.solver)
         println("i-th timestep: $(step[1])")
@@ -616,7 +616,7 @@ function main()
         diagnostics_config = dgn_config,
         user_callbacks = (cbtmarfilter, cb_check_cons, cb_data_vs_time),
         check_euclidean_distance = true,
-        # numberofsteps = 
+        numberofsteps = 291
     )
     push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
     push!(time_data, gettime(solver_config.solver))
