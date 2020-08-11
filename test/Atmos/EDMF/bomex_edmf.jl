@@ -541,7 +541,6 @@ function main()
         init_on_cpu = true,
         Courant_number = CFLmax,
         CFL_direction = VerticalDirection(),
-        numberofsteps=200,
     )
     dgn_config = config_diagnostics(driver_config)
 
