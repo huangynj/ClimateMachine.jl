@@ -746,7 +746,8 @@ end
 
 struct RoeNumericalFlux <: NumericalFluxFirstOrder end
 
-roe_average(ρ⁻, ρ⁺, var⁻, var⁺) = (sqrt(ρ⁻) * var⁻ + sqrt(ρ⁺) * var⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
+roe_average(ρ⁻, ρ⁺, var⁻, var⁺) =
+    (sqrt(ρ⁻) * var⁻ + sqrt(ρ⁺) * var⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
 
 function numerical_flux_first_order!(
     numerical_flux::RoeNumericalFlux,
@@ -784,7 +785,12 @@ function numerical_flux_first_order!(
     ρ⁻ = state_conservative⁻.ρ
     ρu⁻ = state_conservative⁻.ρu
     ρe⁻ = state_conservative⁻.ρe
-    ts⁻ = thermo_state(balance_law, balance_law.moisture, state_conservative⁻, state_auxiliary⁻)
+    ts⁻ = thermo_state(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁻,
+        state_auxiliary⁻,
+    )
 
     u⁻ = ρu⁻ / ρ⁻
     p⁻ = pressure(
@@ -800,7 +806,12 @@ function numerical_flux_first_order!(
     ρ⁺ = state_conservative⁺.ρ
     ρu⁺ = state_conservative⁺.ρu
     ρe⁺ = state_conservative⁺.ρe
-    ts⁺ = thermo_state(balance_law, balance_law.moisture, state_conservative⁺, state_auxiliary⁺)
+    ts⁺ = thermo_state(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁺,
+        state_auxiliary⁺,
+    )
 
     u⁺ = ρu⁺ / ρ⁺
     p⁺ = pressure(
@@ -815,7 +826,7 @@ function numerical_flux_first_order!(
 
     ũ = roe_average(ρ⁻, ρ⁺, u⁻, u⁺)
     h̃ = roe_average(ρ⁻, ρ⁺, h⁻, h⁺)
-    c̃ = sqrt(roe_average(ρ⁻, ρ⁺, c⁻ ^ 2, c⁺ ^ 2))
+    c̃ = sqrt(roe_average(ρ⁻, ρ⁺, c⁻^2, c⁺^2))
 
     # chosen by fair dice roll
     # guaranteed to be random
