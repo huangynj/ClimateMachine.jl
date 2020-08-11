@@ -72,10 +72,28 @@ vars_state(::HeatModel, ::Gradient, FT) = @vars(ρcT::FT);
 
 vars_state(::HeatModel, ::GradientFlux, FT) = @vars(α∇ρcT::SVector{3, FT});
 
-function init_state_auxiliary!(m::HeatModel, aux::Vars, geom::LocalGeometry)
+function heat_eq_nodal_init_state_auxiliary!(
+    m::HeatModel,
+    aux::Vars,
+    tmp::Vars,
+    geom::LocalGeometry,
+)
     aux.z = geom.coord[3]
     aux.T = m.initialT
 end;
+
+function init_state_auxiliary!(
+    m::HeatModel,
+    state_auxiliary::MPIStateArray,
+    grid,
+)
+    nodal_init_state_auxiliary!(
+        m,
+        heat_eq_nodal_init_state_auxiliary!,
+        state_auxiliary,
+        grid,
+    )
+end
 
 function init_state_prognostic!(
     m::HeatModel,
