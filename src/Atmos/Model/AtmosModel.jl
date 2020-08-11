@@ -793,12 +793,6 @@ function numerical_flux_first_order!(
     )
 
     u⁻ = ρu⁻ / ρ⁻
-    p⁻ = pressure(
-        balance_law,
-        balance_law.moisture,
-        state_conservative⁻,
-        state_auxiliary⁻,
-    )
     e⁻ = ρe⁻ / ρ⁻
     h⁻ = total_specific_enthalpy(ts⁻, e⁻)
     c⁻ = soundspeed_air(ts⁻)
@@ -814,12 +808,6 @@ function numerical_flux_first_order!(
     )
 
     u⁺ = ρu⁺ / ρ⁺
-    p⁺ = pressure(
-        balance_law,
-        balance_law.moisture,
-        state_conservative⁺,
-        state_auxiliary⁺,
-    )
     e⁺ = ρe⁺ / ρ⁺
     h⁺ = total_specific_enthalpy(ts⁺, e⁺)
     c⁺ = soundspeed_air(ts⁺)
