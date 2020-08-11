@@ -23,11 +23,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 7.0629054001772662e+00
-│     norm(Q) / norm(Q₀) = 9.9694358982364772e-01
-└     norm(Q) - norm(Q₀) = -2.1653317359243474e-02</pre><p><img src="../box_1D_4_no_filter.svg" alt/></p><p>Below we show results for the same box advection test but using different filters.</p><p><code>TMARFilter()</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 7.0629054001772671e+00
+│     norm(Q) / norm(Q₀) = 9.9694358982364761e-01
+└     norm(Q) - norm(Q₀) = -2.1653317359244362e-02</pre><p><img src="../box_1D_4_no_filter.svg" alt/></p><p>Below we show results for the same box advection test but using different filters.</p><p><code>TMARFilter()</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -53,11 +53,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 7.0284834766754702e+00
-│     norm(Q) / norm(Q₀) = 9.9208486468998613e-01
-└     norm(Q) - norm(Q₀) = -5.6075240861039433e-02</pre><p><img src="../box_1D_4_tmar.svg" alt/></p><p><code>CutoffFilter(grid, Nc=1)</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 7.0284834766754729e+00
+│     norm(Q) / norm(Q₀) = 9.9208486468998636e-01
+└     norm(Q) - norm(Q₀) = -5.6075240861038544e-02</pre><p><img src="../box_1D_4_tmar.svg" alt/></p><p><code>CutoffFilter(grid, Nc=1)</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -84,11 +84,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 4.3749269099665495e+00
-│     norm(Q) / norm(Q₀) = 6.1752991038626448e-01
-└     norm(Q) - norm(Q₀) = -2.7096318075699601e+00</pre><p><img src="../box_1D_4_cutoff_1.svg" alt/></p><p><code>CutoffFilter(grid, Nc=3)</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 4.3749269099692221e+00
+│     norm(Q) / norm(Q₀) = 6.1752991038664151e-01
+└     norm(Q) - norm(Q₀) = -2.7096318075672894e+00</pre><p><img src="../box_1D_4_cutoff_1.svg" alt/></p><p><code>CutoffFilter(grid, Nc=3)</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -115,11 +115,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 7.0138240459753689e+00
-│     norm(Q) / norm(Q₀) = 9.9001565596653884e-01
-└     norm(Q) - norm(Q₀) = -7.0734671561140772e-02</pre><p><img src="../box_1D_4_cutoff_3.svg" alt/></p><p><code>ExponentialFilter(grid, Nc=1, s=4)</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 7.0138240459751815e+00
+│     norm(Q) / norm(Q₀) = 9.9001565596651220e-01
+└     norm(Q) - norm(Q₀) = -7.0734671561329954e-02</pre><p><img src="../box_1D_4_cutoff_3.svg" alt/></p><p><code>ExponentialFilter(grid, Nc=1, s=4)</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -147,11 +147,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 6.9333444856508653e+00
-│     norm(Q) / norm(Q₀) = 9.7865580088829784e-01
-└     norm(Q) - norm(Q₀) = -1.5121423188564442e-01</pre><p><img src="../box_1D_4_exp_1_4.svg" alt/></p><p><code>ExponentialFilter(grid, Nc=1, s=8)</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 6.9333444856521362e+00
+│     norm(Q) / norm(Q₀) = 9.7865580088847703e-01
+└     norm(Q) - norm(Q₀) = -1.5121423188437522e-01</pre><p><img src="../box_1D_4_exp_1_4.svg" alt/></p><p><code>ExponentialFilter(grid, Nc=1, s=8)</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -179,11 +179,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 7.0143099503310449e+00
-│     norm(Q) / norm(Q₀) = 9.9008424236338433e-01
-└     norm(Q) - norm(Q₀) = -7.0248767205464802e-02</pre><p><img src="../box_1D_4_exp_1_8.svg" alt/></p><p><code>ExponentialFilter(grid, Nc=1, s=32)</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 7.0143099503306869e+00
+│     norm(Q) / norm(Q₀) = 9.9008424236333359e-01
+└     norm(Q) - norm(Q₀) = -7.0248767205824514e-02</pre><p><img src="../box_1D_4_exp_1_8.svg" alt/></p><p><code>ExponentialFilter(grid, Nc=1, s=32)</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -211,11 +211,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 7.0543517922306584e+00
-│     norm(Q) / norm(Q₀) = 9.9573623051057791e-01
-└     norm(Q) - norm(Q₀) = -3.0206925305851229e-02</pre><p><img src="../box_1D_4_exp_1_32.svg" alt/></p><p><code>BoydVandevenFilter(grid, Nc=1, s=4)</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 7.0543517922302295e+00
+│     norm(Q) / norm(Q₀) = 9.9573623051051718e-01
+└     norm(Q) - norm(Q₀) = -3.0206925306281995e-02</pre><p><img src="../box_1D_4_exp_1_32.svg" alt/></p><p><code>BoydVandevenFilter(grid, Nc=1, s=4)</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -243,11 +243,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 6.9612435701258786e+00
-│     norm(Q) / norm(Q₀) = 9.8259381390891898e-01
-└     norm(Q) - norm(Q₀) = -1.2331514741063110e-01</pre><p><img src="../box_1D_4_boyd_1_4.svg" alt/></p><p><code>BoydVandevenFilter(grid, Nc=1, s=8)</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 6.9612435701246822e+00
+│     norm(Q) / norm(Q₀) = 9.8259381390874978e-01
+└     norm(Q) - norm(Q₀) = -1.2331514741182925e-01</pre><p><img src="../box_1D_4_boyd_1_4.svg" alt/></p><p><code>BoydVandevenFilter(grid, Nc=1, s=8)</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -275,11 +275,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 6.9798736717027356e+00
-│     norm(Q) / norm(Q₀) = 9.8522349097415962e-01
-└     norm(Q) - norm(Q₀) = -1.0468504583377403e-01</pre><p><img src="../box_1D_4_boyd_1_8.svg" alt/></p><p><code>BoydVandevenFilter(grid, Nc=1, s=32)</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 6.9798736717006342e+00
+│     norm(Q) / norm(Q₀) = 9.8522349097386275e-01
+└     norm(Q) - norm(Q₀) = -1.0468504583587723e-01</pre><p><img src="../box_1D_4_boyd_1_8.svg" alt/></p><p><code>BoydVandevenFilter(grid, Nc=1, s=32)</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -307,11 +307,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 7.0120419256483215e+00
-│     norm(Q) / norm(Q₀) = 9.8976410602558962e-01
-└     norm(Q) - norm(Q₀) = -7.2516791888188159e-02</pre><p><img src="../box_1D_4_boyd_1_32.svg" alt/></p><p><code>ExponentialFilter(grid, Nc=1, s=8)</code> and <code>TMARFilter()</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 7.0120419256465505e+00
+│     norm(Q) / norm(Q₀) = 9.8976410602533949e-01
+└     norm(Q) - norm(Q₀) = -7.2516791889960963e-02</pre><p><img src="../box_1D_4_boyd_1_32.svg" alt/></p><p><code>ExponentialFilter(grid, Nc=1, s=8)</code> and <code>TMARFilter()</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -340,11 +340,11 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 6.9859473293757572e+00
-│     norm(Q) / norm(Q₀) = 9.8608080021742806e-01
-└     norm(Q) - norm(Q₀) = -9.8611388160752433e-02</pre><p><img src="../box_1D_4_tmar_exp_1_8.svg" alt/></p><p><code>BoydVandevenFilter(grid, Nc=1, s=8)</code> and <code>TMARFilter()</code>:</p><pre><code class="language-julia">run_box1D(
+│     norm(Q)            = 6.9859473293754055e+00
+│     norm(Q) / norm(Q₀) = 9.8608080021737821e-01
+└     norm(Q) - norm(Q₀) = -9.8611388161105928e-02</pre><p><img src="../box_1D_4_tmar_exp_1_8.svg" alt/></p><p><code>BoydVandevenFilter(grid, Nc=1, s=8)</code> and <code>TMARFilter()</code>:</p><pre><code class="language-julia">run_box1D(
     4,
     0.0,
     1.0,
@@ -373,8 +373,8 @@ mkpath(output_dir);</code></pre><p>The unfiltered result of the box advection te
 │     dt              = 4.71698e-01
 │     timeend         =   450.00
 │     number of steps = 954
-└     norm(Q)         = 7.0845587175365097e+00
+└     norm(Q)         = 7.0845587175365115e+00
 ┌ Info: Finished
-│     norm(Q)            = 6.9548646819398572e+00
-│     norm(Q) / norm(Q₀) = 9.8169342075242894e-01
-└     norm(Q) - norm(Q₀) = -1.2969403559665249e-01</pre><p><img src="../box_1D_4_tmar_boyd_1_8.svg" alt/></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../../topo/">« Topology</a><a class="docs-footer-nextpage" href="../../../Diagnostics/Debug/StateCheck/">State Statistics Regression »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 11 August 2020 01:48">Tuesday 11 August 2020</span>. Using Julia version 1.4.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+│     norm(Q)            = 6.9548646819377762e+00
+│     norm(Q) / norm(Q₀) = 9.8169342075213495e-01
+└     norm(Q) - norm(Q₀) = -1.2969403559873527e-01</pre><p><img src="../box_1D_4_tmar_boyd_1_8.svg" alt/></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../../topo/">« Topology</a><a class="docs-footer-nextpage" href="../../../Diagnostics/Debug/StateCheck/">State Statistics Regression »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 11 August 2020 20:18">Tuesday 11 August 2020</span>. Using Julia version 1.4.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
