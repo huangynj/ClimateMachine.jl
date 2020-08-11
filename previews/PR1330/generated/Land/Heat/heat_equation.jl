@@ -2,6 +2,8 @@ using MPI
 using OrderedCollections
 using Plots
 using StaticArrays
+using OrdinaryDiffEq
+using DiffEqBase
 
 using CLIMAParameters
 struct EarthParameterSet <: AbstractEarthParameterSet end
@@ -34,6 +36,8 @@ import ClimateMachine.BalanceLaws:
     init_state_auxiliary!,
     init_state_prognostic!,
     boundary_state!
+
+import ClimateMachine.DGMethods: calculate_dt
 
 FT = Float64;
 
@@ -68,10 +72,28 @@ vars_state(::HeatModel, ::Gradient, FT) = @vars(ρcT::FT);
 
 vars_state(::HeatModel, ::GradientFlux, FT) = @vars(α∇ρcT::SVector{3, FT});
 
-function init_state_auxiliary!(m::HeatModel, aux::Vars, geom::LocalGeometry)
+function heat_eq_nodal_init_state_auxiliary!(
+    m::HeatModel,
+    aux::Vars,
+    tmp::Vars,
+    geom::LocalGeometry,
+)
     aux.z = geom.coord[3]
     aux.T = m.initialT
 end;
+
+function init_state_auxiliary!(
+    m::HeatModel,
+    state_auxiliary::MPIStateArray,
+    grid,
+)
+    nodal_init_state_auxiliary!(
+        m,
+        heat_eq_nodal_init_state_auxiliary!,
+        state_auxiliary,
+        grid,
+    )
+end
 
 function init_state_prognostic!(
     m::HeatModel,
@@ -199,14 +221,53 @@ driver_config = ClimateMachine.SingleStackConfiguration(
 t0 = FT(0)
 timeend = FT(40)
 
-Δ = min_node_distance(driver_config.grid)
+function calculate_dt(dg, model::HeatModel, Q, Courant_number, t, direction)
+    Δt = one(eltype(Q))
+    CFL = DGMethods.courant(diffusive_courant, dg, model, Q, Δt, t, direction)
+    return Courant_number / CFL
+end
 
-given_Fourier = FT(0.08);
-Fourier_bound = given_Fourier * Δ^2 / m.α;
-dt = Fourier_bound
+function diffusive_courant(
+    m::HeatModel,
+    state::Vars,
+    aux::Vars,
+    diffusive::Vars,
+    Δx,
+    Δt,
+    t,
+    direction,
+)
+    return Δt * m.α / (Δx * Δx)
+end
 
-solver_config =
-    ClimateMachine.SolverConfiguration(t0, timeend, driver_config, ode_dt = dt);
+use_implicit_solver = false
+if use_implicit_solver
+    given_Fourier = FT(30)
+
+    solver_config = ClimateMachine.SolverConfiguration(
+        t0,
+        timeend,
+        driver_config;
+        ode_solver_type = ImplicitSolverType(OrdinaryDiffEq.Kvaerno3(
+            autodiff = false,
+            linsolve = LinSolveGMRES(),
+        )),
+        Courant_number = given_Fourier,
+        CFL_direction = VerticalDirection(),
+    )
+else
+    given_Fourier = FT(0.7)
+
+    solver_config = ClimateMachine.SolverConfiguration(
+        t0,
+        timeend,
+        driver_config;
+        Courant_number = given_Fourier,
+        CFL_direction = VerticalDirection(),
+    )
+end;
+
+
 grid = solver_config.dg.grid;
 Q = solver_config.Q;
 aux = solver_config.dg.state_auxiliary;
@@ -220,23 +281,7 @@ z_key = "z";
 z_label = "z [cm]";
 z = get_z(grid, z_scale);
 
-function dict_of_states(solver_config, z_key)
-    FT = eltype(solver_config.Q)
-    state_vars = SingleStackUtils.get_vars_from_nodal_stack(
-        solver_config.dg.grid,
-        solver_config.Q,
-        vars_state(solver_config.dg.balance_law, Prognostic(), FT),
-    )
-    aux_vars = SingleStackUtils.get_vars_from_nodal_stack(
-        solver_config.dg.grid,
-        solver_config.dg.state_auxiliary,
-        vars_state(solver_config.dg.balance_law, Auxiliary(), FT);
-        exclude = [z_key],
-    )
-    return OrderedDict(state_vars..., aux_vars...)
-end
-
-all_data = Dict[dict_of_states(solver_config, z_key)]  # store initial condition at ``t=0``
+all_data = Dict[dict_of_nodal_states(solver_config, [z_key])]  # store initial condition at ``t=0``
 time_data = FT[0]                                      # store time data
 
 export_plot(
@@ -254,14 +299,14 @@ const n_outputs = 5;
 const every_x_simulation_time = ceil(Int, timeend / n_outputs);
 
 callback = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
-    push!(all_data, dict_of_states(solver_config, z_key))
+    push!(all_data, dict_of_nodal_states(solver_config, [z_key]))
     push!(time_data, gettime(solver_config.solver))
     nothing
 end;
 
 ClimateMachine.invoke!(solver_config; user_callbacks = (callback,));
 
-push!(all_data, dict_of_states(solver_config, z_key));
+push!(all_data, dict_of_nodal_states(solver_config, [z_key]));
 push!(time_data, gettime(solver_config.solver));
 
 @show keys(all_data[1])
