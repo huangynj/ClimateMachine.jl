@@ -778,7 +778,6 @@ function numerical_flux_first_order!(
     param_set = balance_law.param_set
     _cv_d::FT = cv_d(param_set)
     _T_0::FT = T_0(param_set)
-    γ::FT = cp_d(param_set) / cv_d(param_set)
 
     Φ = gravitational_potential(balance_law, state_auxiliary⁻)
 
@@ -816,8 +815,7 @@ function numerical_flux_first_order!(
 
     ũ = roe_average(ρ⁻, ρ⁺, u⁻, u⁺)
     h̃ = roe_average(ρ⁻, ρ⁺, h⁻, h⁺)
-    c̃ = sqrt((γ - 1) * (h̃ - ũ' * ũ / 2 - Φ + _cv_d * _T_0))
-    #c̃ = sqrt(roe_average(ρ⁻, ρ⁺, c⁻ ^ 2, c⁺ ^ 2))
+    c̃ = sqrt(roe_average(ρ⁻, ρ⁺, c⁻ ^ 2, c⁺ ^ 2))
 
     # chosen by fair dice roll
     # guaranteed to be random

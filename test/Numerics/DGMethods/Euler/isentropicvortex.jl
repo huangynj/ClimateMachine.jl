@@ -71,7 +71,7 @@ function main()
     expected_error[Float64, 2, Central, 3] = 3.6935849488949657e-01
     expected_error[Float64, 2, Central, 4] = 8.3528804679907434e-03
 
-    expected_error[Float64, 2, Roe, 1] = 1.2849464627676848e+01
+    expected_error[Float64, 2, Roe, 1] = 1.2849461640261131e+01
     expected_error[Float64, 2, Roe, 2] = 1.3583900373811288e+00
     expected_error[Float64, 2, Roe, 3] = 7.5128941031874466e-02
     expected_error[Float64, 2, Roe, 4] = 2.1790343556828628e-03
@@ -86,7 +86,7 @@ function main()
     expected_error[Float64, 3, Central, 3] = 1.1680141169828175e-01
     expected_error[Float64, 3, Central, 4] = 2.6414127301659534e-03
 
-    expected_error[Float64, 3, Roe, 1] = 4.0633574937225339e+00
+    expected_error[Float64, 3, Roe, 1] = 4.0633565490187271e+00
     expected_error[Float64, 3, Roe, 2] = 4.2956064690054790e-01
     expected_error[Float64, 3, Roe, 3] = 2.3757857185729998e-02
     expected_error[Float64, 3, Roe, 4] = 6.8907116635145798e-04
