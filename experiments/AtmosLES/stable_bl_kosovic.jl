@@ -202,7 +202,16 @@ function init_problem!(bl, state, aux, (x, y, z), t)
     end
 end
 
-function config_nishizawa_sf(FT, N, resolution, xmax, ymax, zmax)
+function surface_temperature_variation(state,aux,t)
+    FT = eltype(state)
+    ρ = state.ρ
+    q_tot = state.moisture.ρq_tot / ρ
+    θ_liq_sfc = FT(265) - FT(1/4) * (t/3600)
+    TS = LiquidIcePotTempSHumEquil(param_set, θ_liq_sfc, ρ, q_tot)
+    return air_temperature(TS)
+end
+
+function config_problem(FT, N, resolution, xmax, ymax, zmax)
 
     ics = init_problem!     # Initial conditions
 
@@ -215,7 +224,6 @@ function config_nishizawa_sf(FT, N, resolution, xmax, ymax, zmax)
     u_slope = FT(0)              # Slope of altitude-dependent relaxation speed
     v_geostrophic = FT(0)        # Northward relaxation speed
     f_coriolis = FT(1.39e-4) # Coriolis parameter
-    T_sfc = FT(266)
     q_sfc = FT(0)
     u_star = FT(0.30)
 
@@ -259,7 +267,7 @@ function config_nishizawa_sf(FT, N, resolution, xmax, ymax, zmax)
                 )),
                 energy = BulkFormulaEnergy(
                     (state, aux, t, normPu_int) -> C_drag,
-                    (state, aux, t) -> T_sfc,
+                    (state, aux, t) -> surface_temperature_variation(state,aux,t),
                     (state, aux, t) -> q_sfc,
                 ),
                 moisture = BulkFormulaMoisture(
@@ -328,7 +336,7 @@ function main()
     timeend = FT(3600 * 9)
     CFLmax = FT(0.4)
 
-    driver_config = config_nishizawa_sf(FT, N, resolution, xmax, ymax, zmax)
+    driver_config = config_problem(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(
         t0,
         timeend,
