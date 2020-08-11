@@ -873,11 +873,17 @@ function turbconv_boundary_state!(
     if bctype == 1 # bottom
         # YAIR - which 'state' should I use here , state⁺ or state⁻  for computation of surface processes
         upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf =
-            compute_updraft_surface_BC(turbconv.surface, turbconv, m, gm, gm_a)
+            compute_updraft_surface_BC(turbconv.surface, turbconv, m, gm, gm_a, t)
         for i in 1:N_up
+            upd_θ_liq_surf[i] = FT(298.8)
+            upd_q_tot_surf[i] = FT(0.01793)
+            up[i].ρa = FT(0.01173)
+
             up[i].ρaw = FT(0)
-            up[i].ρa = upd_a_surf[i] * gm.ρ
-            @show upd_θ_liq_surf[i], up[i].ρa
+            # up[i].ρa = upd_a_surf[i] * gm.ρ
+            # if 45.11614 < t < 55
+            #     @show t, i, upd_θ_liq_surf[i], up[i].ρa, upd_q_tot_surf[i]
+            # end
             up[i].ρaθ_liq = up[i].ρa * upd_θ_liq_surf[i]
             up[i].ρaq_tot = up[i].ρa * upd_q_tot_surf[i]
         end

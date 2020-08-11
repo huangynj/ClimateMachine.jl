@@ -79,6 +79,7 @@ function compute_updraft_surface_BC(
     atmos::AtmosModel{FT},
     state::Vars,
     aux::Vars,
+    t
 ) where {FT}
     turbconv = atmos.turbconv
     N = n_updrafts(turbconv)
@@ -99,8 +100,8 @@ function compute_updraft_surface_BC(
         e_int = internal_energy(atmos, state, aux)
         ts = PhaseEquil(atmos.param_set, e_int, state.ρ, state.moisture.ρq_tot / state.ρ)
         gm_θ_liq = liquid_ice_pottemp(ts)
-        upd_θ_liq_surf[i] = (gm_θ_liq                + surface_scalar_coeff*sqrt(θ_liq_cv))
-        upd_q_tot_surf[i] = (gm.moisture.ρq_tot*ρinv + surface_scalar_coeff*sqrt(q_tot_cv))
+        upd_θ_liq_surf[i] = (gm_θ_liq                + surface_scalar_coeff*sqrt(max(θ_liq_cv, 0)))
+        upd_q_tot_surf[i] = (gm.moisture.ρq_tot*ρinv + surface_scalar_coeff*sqrt(max(q_tot_cv, 0)))
     end
     return upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf
 end;
@@ -110,6 +111,7 @@ function percentile_bounds_mean_norm(
     high_percentile::FT,
     n_samples::IT,
 ) where {FT <: Real, IT}
+    Random.seed!(15)
     x = rand(Normal(), n_samples)
     xp_low = quantile(Normal(), low_percentile)
     xp_high = quantile(Normal(), high_percentile)

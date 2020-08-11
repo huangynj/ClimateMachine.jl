@@ -529,7 +529,7 @@ function main()
     # For a full-run, please set the timeend to 3600*6 seconds
     # For the test we set this to == 30 minutes
     # timeend = FT(13.805585)
-    timeend = FT(50)
+    timeend = FT(100)
     #timeend = FT(3600 * 6)
     CFLmax = FT(0.90)
 
@@ -588,14 +588,12 @@ function main()
     # This equates to exports every ceil(Int, timeend/n_outputs) time-step:
     every_x_simulation_time = ceil(Int, timeend / n_outputs);
 
-    step = [0]
     cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
     # cb_data_vs_time = GenericCallbacks.EveryXSimulationSteps(1) do
         push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
         push!(time_data, gettime(solver_config.solver))
-        step[1]+=1
         @show gettime(solver_config.solver)
-        println("i-th timestep: $(step[1])")
+        @show getsteps(solver_config.solver)
         nothing
     end;
     # --------------------------
@@ -616,7 +614,7 @@ function main()
         diagnostics_config = dgn_config,
         user_callbacks = (cbtmarfilter, cb_check_cons, cb_data_vs_time),
         check_euclidean_distance = true,
-        numberofsteps = 291
+        # numberofsteps = 291
     )
     push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
     push!(time_data, gettime(solver_config.solver))

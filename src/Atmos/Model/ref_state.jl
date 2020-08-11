@@ -78,12 +78,12 @@ function atmos_init_aux!(
     T_virt, p = m.virtual_temperature_profile(atmos.param_set, z)
     FT = eltype(aux)
     _R_d::FT = R_d(atmos.param_set)
-    k = vertical_unit_vector(atmos, aux)
-    ∇Φ = ∇gravitational_potential(atmos, aux)
 
-    # density computation from pressure ρ = -1/g*dpdz
-    ρ = -k' * tmp.∇p / (k' * ∇Φ)
+    # Replace density by computation from pressure
+    # ρ = -1/g*dpdz
+    ρ = p / (_R_d * T_virt)
     aux.ref_state.ρ = ρ
+    aux.ref_state.p = p
     RH = m.relative_humidity
     phase_type = PhaseEquil
     (T, q_pt) = temperature_and_humidity_from_virtual_temperature(
