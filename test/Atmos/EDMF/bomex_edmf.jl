@@ -98,7 +98,10 @@ import ClimateMachine.BalanceLaws:
 import ClimateMachine.Atmos: source!, atmos_source!, altitude
 import ClimateMachine.Atmos: flux_second_order!, thermo_state
 
-include("single_stack_plothelper.jl")
+using ClimateMachine.SingleStackUtils
+const clima_dir = dirname(dirname(pathof(ClimateMachine)));
+using Plots
+include(joinpath(clima_dir, "docs", "plothelpers.jl"));
 include("edmf_model.jl")
 include("edmf_kernels.jl")
 
@@ -525,7 +528,7 @@ function main()
 
     # For a full-run, please set the timeend to 3600*6 seconds
     # For the test we set this to == 30 minutes
-    timeend = FT(1800)
+    timeend = FT(13.805585)
     #timeend = FT(3600 * 6)
     CFLmax = FT(0.90)
 
@@ -537,13 +540,21 @@ function main()
         init_on_cpu = true,
         Courant_number = CFLmax,
         CFL_direction = VerticalDirection(),
+        numberofsteps=88,
     )
     dgn_config = config_diagnostics(driver_config)
+
+    N_up = n_updrafts(solver_config.dg.balance_law.turbconv)
 
     cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do
         Filters.apply!(
             solver_config.Q,
-            ("moisture.ρq_tot",),
+            ("moisture.ρq_tot",
+             "turbconv.environment.ρatke",
+             "turbconv.environment.ρaθ_liq_cv",
+             "turbconv.environment.ρaq_tot_cv",
+             "turbconv.updraft",
+             ),
             solver_config.dg.grid,
             TMARFilter(),
         )
@@ -567,13 +578,10 @@ function main()
     grid = driver_config.grid
     output_dir = ClimateMachine.Settings.output_dir
     @show output_dir
-    all_data = [dict_of_states(solver_config)]
+    all_data = [dict_of_nodal_states(solver_config, ["z"])]
     time_data = FT[0]
 
-    plot_ICs = true
-    if plot_ICs
-        plot_results(solver_config, all_data, time_data, joinpath(output_dir, "ICs"))
-    end
+    export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "ICs"))
 
     # Define the number of outputs from `t0` to `timeend`
     n_outputs = 8;
@@ -581,9 +589,13 @@ function main()
     every_x_simulation_time = ceil(Int, timeend / n_outputs);
 
     cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
-        push!(all_data, dict_of_states(solver_config))
+    step = [0]
+    # cb_data_vs_time = GenericCallbacks.EveryXSimulationSteps(1) do
+        push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
         @show gettime(solver_config.solver)
         push!(time_data, gettime(solver_config.solver))
+        step[1]+=1
+        println("i-th timestep: $(step[1])")
         nothing
     end;
     # --------------------------
@@ -605,15 +617,15 @@ function main()
         user_callbacks = (cbtmarfilter, cb_check_cons, cb_data_vs_time),
         check_euclidean_distance = true,
     )
-    push!(all_data, dict_of_states(solver_config))
+    push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
     push!(time_data, gettime(solver_config.solver))
 
-    plot_results(solver_config, all_data, time_data, joinpath(output_dir, "runtime"))
+    export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "runtime"))
 
     @show kernel_calls
     # @test all(values(kernel_calls))
     @test !isnan(norm(Q))
-    return solver_config
+    return solver_config, all_data, time_data
 end
 
-time_data, all_data = main()
+solver_config, all_data, time_data = main()

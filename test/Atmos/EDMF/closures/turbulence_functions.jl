@@ -35,7 +35,7 @@ function compute_buoyancy_gradients(
     Π = exner(ts)
     q = PhasePartition(ts)
     ql = q.liq
-    _cp_m = cp_m(m.param_set, q)
+    _cp_m = cp_m(ts)
     θv = virtual_pottemp(ts)
     # Tv = θv * Π
     # θvl = θv * exp(-(lv * ql) / (_cp_m * T))
@@ -64,21 +64,21 @@ function compute_buoyancy_gradients(
 
     prefactor = _grav * (_R_d * gm.ρ/gm_p * Π)
 
-    ∂b∂θl_dry = prefactor * (1.0 + (ε_v-1.0) * dry_q_tot)
-    ∂b∂qt_dry = prefactor * dry_θ_liq * (ε_v-1.0)
+    ∂b∂θl_dry = prefactor * (FT(1) + (ε_v-1) * dry_q_tot)
+    ∂b∂qt_dry = prefactor * dry_θ_liq * (ε_v-1)
 
     if cld_frac>FT(0)
-        ∂b∂θl_cloudy = (prefactor * (1.0 + ε_v * (1.0 + lv / _R_v / cloudy_T)
+        ∂b∂θl_cloudy = (prefactor * (1 + ε_v * (1 + lv / _R_v / cloudy_T)
                     * cloudy_q_vap - cloudy_q_tot )
-                     / (1.0 + lv * lv / _cp_m / _R_v / cloudy_T / cloudy_T * cloudy_q_vap))
+                     / (1 + lv * lv / _cp_m / _R_v / cloudy_T / cloudy_T * cloudy_q_vap))
         ∂b∂qt_cloudy = (lv / _cp_m / cloudy_T * ∂b∂θl_cloudy - prefactor) * cloudy_θ
     else
-        ∂b∂θl_cloudy = 0.0
-        ∂b∂qt_cloudy = 0.0
+        ∂b∂θl_cloudy = FT(0)
+        ∂b∂qt_cloudy = FT(0)
     end
 
-    ∂b∂θl = (cld_frac * ∂b∂θl_cloudy + (1.0-cld_frac) * ∂b∂θl_dry)
-    ∂b∂qt = (cld_frac * ∂b∂qt_cloudy + (1.0-cld_frac) * ∂b∂qt_dry)
+    ∂b∂θl = (cld_frac * ∂b∂θl_cloudy + (1-cld_frac) * ∂b∂θl_dry)
+    ∂b∂qt = (cld_frac * ∂b∂qt_cloudy + (1-cld_frac) * ∂b∂qt_dry)
 
     # Partial buoyancy gradients
     ∂b∂z_θl = en_d.∇θ_liq[3] * ∂b∂θl
@@ -98,13 +98,13 @@ function compute_buoyancy_gradients(
     return ∂b∂z, Nˢ_eff
 end;
 
-function gradient_Richardson_number(∂b∂z,Shear,maxval)
-    return min(∂b∂z/max(Shear, 1e-6), maxval)
+function gradient_Richardson_number(∂b∂z::FT,Shear::FT,maxval::FT) where {FT}
+    return min(∂b∂z/max(Shear, FT(1e-6)), maxval)
 end;
 
-function turbulent_Prandtl_number(Pr_n, Grad_Ri)
-    Pr_z = Pr_n * (2 * Grad_Ri / ( 1 + (53.0 / 13.0) * Grad_Ri -
-                sqrt((1 + (53.0 / 130.0) * Grad_Ri)^2 - 4 * Grad_Ri)))
+function turbulent_Prandtl_number(Pr_n::FT, Grad_Ri::FT) where {FT}
+    Pr_z = Pr_n * (2 * Grad_Ri / ( 1 + (FT(53.0) / FT(13.0)) * Grad_Ri -
+                sqrt((1 + (FT(53.0) / FT(130.0)) * Grad_Ri)^2 - 4 * Grad_Ri)))
     return Pr_z
 end;
 

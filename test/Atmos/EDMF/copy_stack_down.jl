@@ -18,7 +18,7 @@ function copy_stack_down!(
         i_H = vim_a.∫dz.turbconv.updraft[i_up].H
         # @show aux[end,i_H, end]
         # aux[:,i_H, :] .= aux[end,i_H, end]
-        aux[:,i_H, :] .= 500
+        aux[:,i_H, :] .= FT(500)
     end
 
 end

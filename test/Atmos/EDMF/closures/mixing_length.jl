@@ -21,15 +21,15 @@ function mixing_length(
     gm_d = diffusive
     gm_a = aux
     en_d = diffusive.turbconv.environment
-    N_upd = n_updrafts(m.turbconv)
+    N_up = n_updrafts(m.turbconv)
 
     z = altitude(m, aux)
     _grav = FT(grav(m.param_set))
     ρinv = 1 / gm.ρ
 
     # precompute
-    en_area  = environment_area(state, aux, N_upd)
-    w_env    = environment_w(state, aux, N_upd)
+    en_area  = environment_area(state, aux, N_up)
+    w_env    = environment_w(state, aux, N_up)
 
     gm_d_∇u = diffusive.turbconv.∇u
     # TODO: check rank of `en_d.∇u`
@@ -51,9 +51,9 @@ function mixing_length(
 
     # compute L1
     if Nˢ_eff > eps(FT)
-        L_1 = min(sqrt(ml.c_b * tke) / Nˢ_eff, 1e6)
+        L_1 = min(sqrt(ml.c_b * tke) / Nˢ_eff, FT(1e6))
     else
-        L_1 = 1.0e6
+        L_1 = FT(1.0e6)
     end
 
     # compute L2 - law of the wall  - YAIR define tke_surf
@@ -79,7 +79,7 @@ function mixing_length(
     a = ml.c_m * (Shear - ∂b∂z/Pr_z) * sqrt(tke)
     # Dissipation term
     b = FT(0)
-    for i in 1:N_upd
+    for i in 1:N_up
         a_up = up[i].ρa * ρinv
         w_up = up[i].ρaw / up[i].ρa
         b +=

@@ -63,12 +63,12 @@ function env_surface_covariances(
       θ_liq_cv       = 4 * (θ_liq_surface_flux*θ_liq_surface_flux)/(ustar*ustar) * (1 - FT(8.3) * zLL/oblength)^(-FT(2)/FT(3))
       q_tot_cv       = 4 * (q_tot_surface_flux*q_tot_surface_flux)/(ustar*ustar) * (1 - FT(8.3) * zLL/oblength)^(-FT(2)/FT(3))
       θ_liq_q_tot_cv = 4 * (θ_liq_surface_flux*q_tot_surface_flux)/(ustar*ustar) * (1 - FT(8.3) * zLL/oblength)^(-FT(2)/FT(3))
-      tke            = ustar * ustar * (3.75 + cbrt(zLL/oblength * zLL/oblength))
+      tke            = ustar * ustar * (FT(3.75) + cbrt(zLL/oblength * zLL/oblength))
     else
       θ_liq_cv       = 4 * (θ_liq_surface_flux * θ_liq_surface_flux)/(ustar*ustar)
       q_tot_cv       = 4 * (q_tot_surface_flux * q_tot_surface_flux)/(ustar*ustar)
       θ_liq_q_tot_cv = 4 * (θ_liq_surface_flux * q_tot_surface_flux)/(ustar*ustar)
-      tke            = 3.75 * ustar * ustar
+      tke            = FT(3.75) * ustar * ustar
     end
     return θ_liq_cv, q_tot_cv, θ_liq_q_tot_cv, tke
 end;

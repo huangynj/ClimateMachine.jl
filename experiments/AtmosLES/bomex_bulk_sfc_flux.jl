@@ -50,32 +50,20 @@ eprint = {https://journals.ametsoc.org/doi/pdf/10.1175/1520-0469%282003%2960%3C1
 =#
 
 using ClimateMachine
-ClimateMachine.init(;parse_clargs = true, output_dir="output")
+ClimateMachine.init(parse_clargs = true)
 
 using ClimateMachine.Atmos
-using ClimateMachine.TurbulenceClosures
 using ClimateMachine.Orientations
-using ClimateMachine.TurbulenceConvection
 using ClimateMachine.ConfigTypes
-using ClimateMachine.MPIStateArrays
 using ClimateMachine.DGMethods.NumericalFluxes
-using ClimateMachine.DGMethods
 using ClimateMachine.Diagnostics
 using ClimateMachine.GenericCallbacks
 using ClimateMachine.Mesh.Filters
 using ClimateMachine.Mesh.Grids
 using ClimateMachine.ODESolvers
-using ClimateMachine.SingleStackUtils
 using ClimateMachine.Thermodynamics
+using ClimateMachine.TurbulenceClosures
 using ClimateMachine.VariableTemplates
-using ClimateMachine.BalanceLaws:
-    BalanceLaw,
-    Auxiliary,
-    Gradient,
-    GradientFlux,
-    Prognostic
-
-using ClimateMachine.DGMethods: LocalGeometry, nodal_update_auxiliary_state!
 
 using Distributions
 using Random
@@ -85,19 +73,13 @@ using DocStringExtensions
 using LinearAlgebra
 
 using CLIMAParameters
-using CLIMAParameters.Planet: e_int_v0, grav, day, R_d, R_v, molmass_ratio
+using CLIMAParameters.Planet: e_int_v0, grav, day
 struct EarthParameterSet <: AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
 
-import ClimateMachine.BalanceLaws:
-    vars_state,
-    flux_first_order!,
-    flux_second_order!,
-    compute_gradient_argument!,
-    compute_gradient_flux!
-
-import ClimateMachine.Atmos: atmos_source!
-using ClimateMachine.Atmos: altitude, thermo_state
+import ClimateMachine.BalanceLaws: vars_state
+import ClimateMachine.Atmos: source!, atmos_source!, altitude
+import ClimateMachine.Atmos: flux_second_order!, thermo_state
 
 """
   Bomex Geostrophic Forcing (Source)
@@ -122,6 +104,7 @@ function atmos_source!(
     t::Real,
     direction,
 )
+
     f_coriolis = s.f_coriolis
     u_geostrophic = s.u_geostrophic
     u_slope = s.u_slope
@@ -225,7 +208,7 @@ function atmos_source!(
     _e_int_v0 = FT(e_int_v0(atmos.param_set))
 
     # Establish thermodynamic state
-    ts = thermo_state(atmos, state, aux)
+    TS = thermo_state(atmos, state, aux)
 
     # Moisture tendencey (sink term)
     # Temperature tendency (Radiative cooling)
@@ -243,8 +226,8 @@ function atmos_source!(
     k̂ = vertical_unit_vector(atmos, aux)
 
     # Thermodynamic state identification
-    q_pt = PhasePartition(ts)
-    cvm = cv_m(ts)
+    q_pt = PhasePartition(TS)
+    cvm = cv_m(TS)
 
     # Piecewise term for moisture tendency
     linscale_moisture = (z - zl_moisture) / (zh_moisture - zl_moisture)
@@ -279,7 +262,7 @@ function atmos_source!(
 
     # Collect Sources
     source.moisture.ρq_tot += ρ∂qt∂t
-    source.ρe += cvm * ρ∂θ∂t * exner(ts) + _e_int_v0 * ρ∂qt∂t
+    source.ρe += cvm * ρ∂θ∂t * exner(TS) + _e_int_v0 * ρ∂qt∂t
     source.ρe -= ρ * w_s * dot(k̂, diffusive.∇h_tot)
     source.moisture.ρq_tot -= ρ * w_s * dot(k̂, diffusive.moisture.∇q_tot)
     return nothing
@@ -353,10 +336,10 @@ function init_bomex!(bl, state, aux, (x, y, z), t)
     P = P_sfc * exp(-z / H)
 
     # Establish thermodynamic state and moist phase partitioning
-    ts = LiquidIcePotTempSHumEquil_given_pressure(bl.param_set, θ_liq, P, q_tot)
-    T = air_temperature(ts)
-    ρ = air_density(ts)
-    q_pt = PhasePartition(ts)
+    TS = LiquidIcePotTempSHumEquil_given_pressure(bl.param_set, θ_liq, P, q_tot)
+    T = air_temperature(TS)
+    ρ = air_density(TS)
+    q_pt = PhasePartition(TS)
 
     # Compute momentum contributions
     ρu = ρ * u
@@ -366,7 +349,7 @@ function init_bomex!(bl, state, aux, (x, y, z), t)
     # Compute energy contributions
     e_kin = FT(1 // 2) * (u^2 + v^2 + w^2)
     e_pot = _grav * z
-    ρe_tot = ρ * total_energy(e_kin, e_pot, ts)
+    ρe_tot = ρ * total_energy(e_kin, e_pot, TS)
 
     # Assign initial conditions for prognostic state variables
     state.ρ = ρ
@@ -374,25 +357,23 @@ function init_bomex!(bl, state, aux, (x, y, z), t)
     state.ρe = ρe_tot
     state.moisture.ρq_tot = ρ * q_tot
 
-    Random.seed!(15)
     if z <= FT(400) # Add random perturbations to bottom 400m of model
         state.ρe += rand() * ρe_tot / 100
         state.moisture.ρq_tot += rand() * ρ * q_tot / 100
     end
-    # initialize edmf prognostic variables
-
-    return nothing
 end
 
-function config_bomex(FT, N, nelem_vert, zmax)
+function config_bomex(FT, N, resolution, xmax, ymax, zmax)
 
     ics = init_bomex!     # Initial conditions
 
     C_smag = FT(0.23)     # Smagorinsky coefficient
 
     u_star = FT(0.28)     # Friction velocity
+    C_drag = FT(0.0011)   # Bulk transfer coefficient
 
     T_sfc = FT(300.4)     # Surface temperature `[K]`
+    q_sfc = FT(22.45e-3)  # Surface specific humiity `[kg/kg]`
     LHF = FT(147.2)       # Latent heat flux `[W/m²]`
     SHF = FT(9.5)         # Sensible heat flux `[W/m²]`
     moisture_flux = LHF / latent_heat_vapor(param_set, T_sfc)
@@ -415,9 +396,6 @@ function config_bomex(FT, N, nelem_vert, zmax)
     w_sub = FT(-0.65e-2)     # Subsidence velocity peak value
 
     f_coriolis = FT(0.376e-4) # Coriolis parameter
-
-    N_updrafts = 2
-    N_quad = 3
 
     # Assemble source components
     source = (
@@ -445,16 +423,14 @@ function config_bomex(FT, N, nelem_vert, zmax)
     )
 
     # Choose default IMEX solver
-    ode_solver_type = ClimateMachine.ExplicitSolverType(
-        solver_method = LSRK144NiegemannDiehlBusch,
-        )
+    ode_solver_type = ClimateMachine.IMEXSolverType()
 
     # Assemble model components
     model = AtmosModel{FT}(
-        SingleStackConfigType,
+        AtmosLESConfigType,
         param_set;
         turbulence = SmagorinskyLilly{FT}(C_smag),
-        moisture = EquilMoist{FT}(; maxiter = 100, tolerance = FT(0.15)),
+        moisture = EquilMoist{FT}(; maxiter = 5, tolerance = FT(0.1)),
         source = source,
         boundarycondition = (
             AtmosBC(
@@ -463,9 +439,14 @@ function config_bomex(FT, N, nelem_vert, zmax)
                     # P represents the projection onto the horizontal
                     (state, aux, t, normPu_int) -> (u_star / normPu_int)^2,
                 )),
-                energy = PrescribedEnergyFlux((state, aux, t) -> LHF + SHF),
-                moisture = PrescribedMoistureFlux(
-                    (state, aux, t) -> moisture_flux,
+                energy = BulkFormulaEnergy(
+                    (state, aux, t, normPu_int) -> C_drag,
+                    (state, aux, t) -> T_sfc,
+                    (state, aux, t) -> q_sfc,
+                ),
+                moisture = BulkFormulaMoisture(
+                    (state, aux, t, normPu_int) -> C_drag,
+                    (state, aux, t) -> q_sfc,
                 ),
             ),
             AtmosBC(),
@@ -474,14 +455,17 @@ function config_bomex(FT, N, nelem_vert, zmax)
     )
 
     # Assemble configuration
-    config = ClimateMachine.SingleStackConfiguration(
-        "BOMEX_SINGLE_STACK",
+    config = ClimateMachine.AtmosLESConfiguration(
+        "BOMEX",
         N,
-        nelem_vert,
+        resolution,
+        xmax,
+        ymax,
         zmax,
         param_set,
-        model;
+        init_bomex!,
         solver_type = ode_solver_type,
+        model = model,
     )
     return config
 end
@@ -507,10 +491,16 @@ function main()
     FT = Float32
 
     # DG polynomial order
-    N = 1
-    nelem_vert = 50
+    N = 4
+    # Domain resolution and size
+    Δh = FT(100)
+    Δv = FT(40)
+
+    resolution = (Δh, Δh, Δv)
 
     # Prescribe domain parameters
+    xmax = FT(6400)
+    ymax = FT(6400)
     zmax = FT(3000)
 
     t0 = FT(0)
@@ -521,14 +511,13 @@ function main()
     #timeend = FT(3600 * 6)
     CFLmax = FT(0.90)
 
-    driver_config = config_bomex(FT, N, nelem_vert, zmax)
+    driver_config = config_bomex(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(
         t0,
         timeend,
         driver_config,
         init_on_cpu = true,
         Courant_number = CFLmax,
-        CFL_direction = VerticalDirection(),
     )
     dgn_config = config_diagnostics(driver_config)
 
@@ -553,14 +542,13 @@ function main()
     # DG variable sums
     Σρ₀ = sum(ρ₀ .* M)
     Σρe₀ = sum(ρe₀ .* M)
-
     cb_check_cons = GenericCallbacks.EveryXSimulationSteps(3000) do
         Q = solver_config.Q
         δρ = (sum(Q.ρ .* M) - Σρ₀) / Σρ₀
         δρe = (sum(Q.ρe .* M) .- Σρe₀) ./ Σρe₀
         @show (abs(δρ))
         @show (abs(δρe))
-        @test (abs(δρ) <= 0.001)
+        @test (abs(δρ) <= 0.0001)
         @test (abs(δρe) <= 0.0025)
         nothing
     end
@@ -571,9 +559,6 @@ function main()
         user_callbacks = (cbtmarfilter, cb_check_cons),
         check_euclidean_distance = true,
     )
-
-    @test !isnan(norm(Q))
-    return solver_config
 end
 
-solver_config = main()
+main()

@@ -99,7 +99,9 @@ import ClimateMachine.BalanceLaws:
 import ClimateMachine.Atmos: atmos_source!
 using ClimateMachine.Atmos: altitude, thermo_state
 
-include("single_stack_plothelper.jl")
+const clima_dir = dirname(dirname(pathof(ClimateMachine)));
+using Plots
+include(joinpath(clima_dir, "docs", "plothelpers.jl"));
 
 """
   Bomex Geostrophic Forcing (Source)
@@ -537,7 +539,7 @@ function main()
 
     output_dir = ClimateMachine.Settings.output_dir
     @show output_dir
-    all_data = [dict_of_states(solver_config)]
+    all_data = [dict_of_nodal_states(solver_config, ["z"])]
     time_data = FT[0]
 
     # Define the number of outputs from `t0` to `timeend`
@@ -546,7 +548,7 @@ function main()
     every_x_simulation_time = ceil(Int, timeend / n_outputs);
 
     cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
-        push!(all_data, dict_of_states(solver_config))
+        push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
         push!(time_data, gettime(solver_config.solver))
         nothing
     end;
@@ -597,4 +599,4 @@ end
 
 solver_config, all_data, time_data = main()
 
-plot_results(solver_config, all_data, time_data, joinpath(clima_dir, "output", "steady_sol"))
+export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "runtime"))

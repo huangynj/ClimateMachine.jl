@@ -34,16 +34,18 @@ function nondimensional_exchange_functions(
     Δw = max(w_up - w_en, 1e-4)
     Δb = up_a[i].buoyancy - en_a.buoyancy
 
-    if RH_up == 1.0 || RH_en == 1.0
+    if saturated(ts_up) || saturated(ts_en)
         c_δ = entr.c_δ
     else
-        c_δ = 0.0
+        c_δ = FT(0)
     end
     # compute dry and moist aux functions
-    μ_ij = (entr.χ - up_area / (up_area + a_en))/Δw
+    μ_ij = (entr.χ - up_area / (up_area + a_en))*Δb/Δw
     D_ε  = entr.c_ε /(1 + exp(-μ_ij/entr.μ_0))
     D_δ  = entr.c_ε /(1 + exp( μ_ij/entr.μ_0))
-    M_δ  = entr.c_δ * (max((RH_up^entr.β - RH_en^entr.β), 0.0))^(1/entr.β)
-    M_ε  = entr.c_δ * (max((RH_en^entr.β - RH_up^entr.β), 0.0))^(1/entr.β)
+    M_δ  = entr.c_δ * (max((RH_up^entr.β - RH_en^entr.β), 0))^(1/entr.β)
+    M_ε  = entr.c_δ * (max((RH_en^entr.β - RH_up^entr.β), 0))^(1/entr.β)
     return D_ε, D_δ, M_δ, M_ε
 end;
+
+saturated(ts::Thermodynamics.ThermodynamicState) = (relative_humidity(ts) ≈ 1)
