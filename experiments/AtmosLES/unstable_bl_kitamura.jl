@@ -213,7 +213,7 @@ function config_problem(FT, N, resolution, xmax, ymax, zmax)
     ics = init_problem!     # Initial conditions
 
     C_smag = FT(0.23)     # Smagorinsky coefficient
-    C_drag = FT(0.1)
+    C_drag = FT(0.001)    # Momentum exchange coefficient
     z_sponge = FT(2560)     # Start of sponge layer
     α_max = FT(0.75)       # Strength of sponge layer (timescale)
     γ = 2                  # Strength of sponge layer (exponent)
