@@ -865,7 +865,7 @@ function turbconv_boundary_state!(
     # kernel_calls[:turbconv_boundary_state!] = true
 
     turbconv = m.turbconv
-    N = n_updrafts(turbconv)
+    N_up = n_updrafts(turbconv)
     up = state⁺.turbconv.updraft
     en = state⁺.turbconv.environment
     gm = state⁺
@@ -874,15 +874,16 @@ function turbconv_boundary_state!(
         # YAIR - which 'state' should I use here , state⁺ or state⁻  for computation of surface processes
         upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf =
             compute_updraft_surface_BC(turbconv.surface, turbconv, m, gm, gm_a)
-        for i in 1:N
+        for i in 1:N_up
             up[i].ρaw = FT(0)
             up[i].ρa = upd_a_surf[i] * gm.ρ
+            @show upd_θ_liq_surf[i], up[i].ρa
             up[i].ρaθ_liq = up[i].ρa * upd_θ_liq_surf[i]
             up[i].ρaq_tot = up[i].ρa * upd_q_tot_surf[i]
         end
         θ_liq_cv, q_tot_cv, θ_liq_q_tot_cv, tke =
             env_surface_covariances(turbconv.surface, turbconv, m, gm, gm_a)
-        en_area = environment_area(gm, gm_a, N)
+        en_area = environment_area(gm, gm_a, N_up)
 
         en.ρatke            = gm.ρ * en_area * tke
         en.ρaθ_liq_cv       = gm.ρ * en_area * θ_liq_cv
@@ -891,7 +892,7 @@ function turbconv_boundary_state!(
 
     elseif bctype == 2 # top
         ρinv = 1 / gm.ρ
-        for i in 1:N
+        for i in 1:N_up
             up[i].ρaw = FT(0)
             up[i].ρa = FT(0)
             up[i].ρaθ_liq = FT(0)
