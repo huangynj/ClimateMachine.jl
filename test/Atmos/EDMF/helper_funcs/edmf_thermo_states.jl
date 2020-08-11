@@ -39,6 +39,8 @@ function save_subdomain_temperature!(
             @show ρa_up
             @show ρa_up * ρinv
             @show p,ρ
+            @show θ_liq_up
+            @show q_tot_up
             @show liquid_ice_pottemp(ts_gm)
             @show total_specific_humidity(ts_gm)
             ts_up = LiquidIcePotTempSHumEquil_given_pressure(m.param_set, θ_liq_up, p, q_tot_up)

@@ -528,7 +528,8 @@ function main()
 
     # For a full-run, please set the timeend to 3600*6 seconds
     # For the test we set this to == 30 minutes
-    timeend = FT(13.805585)
+    # timeend = FT(13.805585)
+    timeend = FT(50)
     #timeend = FT(3600 * 6)
     CFLmax = FT(0.90)
 
@@ -540,7 +541,7 @@ function main()
         init_on_cpu = true,
         Courant_number = CFLmax,
         CFL_direction = VerticalDirection(),
-        numberofsteps=88,
+        numberofsteps=200,
     )
     dgn_config = config_diagnostics(driver_config)
 

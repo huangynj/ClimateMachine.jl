@@ -196,6 +196,7 @@ function vars_state(::Updraft, ::Auxiliary, FT)
         a::FT,
         ε_dyn::FT,
         δ_dyn::FT,
+        ε_trb::FT,
         T::FT,
         H::FT,
         H_integ::FT,
@@ -336,7 +337,7 @@ function init_state_prognostic!(
     gm = state
     en = state.turbconv.environment
     up = state.turbconv.updraft
-
+    N_up = n_updrafts(turbconv)
     # GCM setting - Initialize the grid mean profiles of prognostic variables (ρ,e_int,q_tot,u,v,w)
     z = altitude(m, aux)
 
@@ -352,7 +353,7 @@ function init_state_prognostic!(
     q = PhasePartition(ts)
     θ_liq = liquid_ice_pottemp(ts)
 
-    a_up = FT(0.1)
+    a_up = turbconv.surface.a_surf/N_up
     for i in 1:N
         up[i].ρa = gm.ρ * a_up
         up[i].ρaw = gm.ρu[3] * a_up
@@ -455,7 +456,6 @@ function turbconv_nodal_update_auxiliary_state!(
         ρ_i = air_density(ts)
         up_a[i].buoyancy = -_grav * (ρ_i - aux.ref_state.ρ) * ρinv
         up_a[i].a = up[i].ρa * ρinv
-        up_a[i].ε_dyn, up_a[i].δ_dyn, _ = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
     end
     b_gm = grid_mean_b(state,aux,N_up)
 
@@ -464,6 +464,9 @@ function turbconv_nodal_update_auxiliary_state!(
         up_a[i].buoyancy -= b_gm
     end
     en_a.buoyancy -= b_gm
+    for i in 1:N_up
+        up_a[i].ε_dyn, up_a[i].δ_dyn, up_a[i].ε_trb = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+    end
 end;
 
 enforce_unit_bounds(x::FT) where {FT} = clamp(x, FT(1e-3), FT(1-1e-3))
@@ -616,8 +619,11 @@ function turbconv_source!(
         w_i = up[i].ρaw / up[i].ρa
         ρa_i = enforce_unit_bounds(up[i].ρa)
 
-        # first moment sources
-        ε_dyn[i] ,δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+        # first moment sources - for now we compute these as aux variable 
+        # ε_dyn[i] ,δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+        ε_dyn[i] = up_a[i].ε_dyn
+        δ_dyn[i] = up_a[i].δ_dyn
+        ε_trb[i] = up_a[i].ε_trb
         dpdz, dpdz_tke_i  = perturbation_pressure(m, m.turbconv.pressure, state, diffusive, aux, t, direction, i)
 
         # entrainment and detrainment
@@ -763,6 +769,7 @@ function flux_second_order!(
     up_f = flux.turbconv.updraft
     en_f = flux.turbconv.environment
     en_d = diffusive.turbconv.environment
+    up_a = aux.turbconv.updraft
     ρinv = FT(1) / gm.ρ
     _grav::FT = grav(m.param_set)
     z = altitude(m, aux)
@@ -771,7 +778,11 @@ function flux_second_order!(
     δ_dyn = MArray{Tuple{N}, FT}(zeros(FT, N))
     ε_trb = MArray{Tuple{N}, FT}(zeros(FT, N))
     for i in 1:N
-        ε_dyn[i], δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+        # for now we compute these as aux variable 
+        # ε_dyn[i], δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+        ε_dyn[i] = up_a[i].ε_dyn
+        δ_dyn[i] = up_a[i].δ_dyn
+        ε_trb[i] = up_a[i].ε_trb
     end
     l_mix = mixing_length(m, turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
     l_mix = FT(500)
