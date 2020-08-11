@@ -827,8 +827,8 @@ function numerical_flux_first_order!(
     τ2 = τ1 × normal_vector
 
     ũᵀn = ũ' * normal_vector
-    ũc̃⁻ = ũ + c̃ * normal_vector
-    ũc̃⁺ = ũ - c̃ * normal_vector
+    ũc̃⁻ = ũ - c̃ * normal_vector
+    ũc̃⁺ = ũ + c̃ * normal_vector
 
     Λ = SDiagonal(
         abs(ũᵀn - c̃),
