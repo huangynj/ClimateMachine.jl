@@ -199,11 +199,11 @@ function init_problem!(bl, state, aux, (x, y, z), t)
     end
 end
 
-function surface_temperature_variation(state,aux,t)
+function surface_temperature_variation(state, aux, t)
     FT = eltype(state)
     ρ = state.ρ
     q_tot = state.moisture.ρq_tot / ρ
-    θ_liq_sfc = FT(291.15) + FT(20) * sinpi(FT(t/12/3600))
+    θ_liq_sfc = FT(291.15) + FT(20) * sinpi(FT(t / 12 / 3600))
     TS = LiquidIcePotTempSHumEquil(param_set, θ_liq_sfc, ρ, q_tot)
     return air_temperature(TS)
 end
@@ -264,7 +264,8 @@ function config_problem(FT, N, resolution, xmax, ymax, zmax)
                 )),
                 energy = BulkFormulaEnergy(
                     (state, aux, t, normPu_int) -> C_drag,
-                    (state, aux, t) -> surface_temperature_variation(state,aux,t),
+                    (state, aux, t) ->
+                        surface_temperature_variation(state, aux, t),
                     (state, aux, t) -> q_sfc,
                 ),
                 moisture = BulkFormulaMoisture(
