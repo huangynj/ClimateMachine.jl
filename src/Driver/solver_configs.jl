@@ -87,6 +87,7 @@ function SolverConfiguration(
     timeend_dt_adjust = true,
     CFL_direction = EveryDirection(),
     fixed_number_of_steps = Settings.fixed_number_of_steps,
+    skip_update_aux = false,
 ) where {FT <: AbstractFloat}
     @tic SolverConfiguration
 
@@ -161,7 +162,9 @@ function SolverConfiguration(
             )
         end
     end
-    update_auxiliary_state!(dg, bl, Q, FT(0), dg.grid.topology.realelems)
+    if !skip_update_aux
+        update_auxiliary_state!(dg, bl, Q, FT(0), dg.grid.topology.realelems)
+    end
 
     if Settings.debug_init
         write_debug_init_vtk_and_pvtu(
