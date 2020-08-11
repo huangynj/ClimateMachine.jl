@@ -865,7 +865,7 @@ function turbconv_boundary_state!(
             compute_updraft_surface_BC(turbconv.surface, turbconv, m, gm, gm_a)
         for i in 1:N
             up[i].ρaw = FT(0)
-            up[i].ρa = upd_a_surf[i]
+            up[i].ρa = upd_a_surf[i] * gm.ρ
             up[i].ρaθ_liq = up[i].ρa * upd_θ_liq_surf[i]
             up[i].ρaq_tot = up[i].ρa * upd_q_tot_surf[i]
         end
