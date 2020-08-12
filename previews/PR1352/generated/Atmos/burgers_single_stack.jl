@@ -1,10 +1,9 @@
 using MPI
 using Distributions
-using NCDatasets
 using OrderedCollections
 using Plots
 using StaticArrays
-using LinearAlgebra: Diagonal
+using LinearAlgebra: Diagonal, tr
 
 using CLIMAParameters
 struct EarthParameterSet <: AbstractEarthParameterSet end
@@ -16,6 +15,9 @@ using ClimateMachine.Mesh.Grids
 using ClimateMachine.Writers
 using ClimateMachine.DGMethods
 using ClimateMachine.DGMethods.NumericalFluxes
+using ClimateMachine.BalanceLaws:
+    BalanceLaw, Prognostic, Auxiliary, Gradient, GradientFlux
+
 using ClimateMachine.Mesh.Geometry: LocalGeometry
 using ClimateMachine.MPIStateArrays
 using ClimateMachine.GenericCallbacks
@@ -23,7 +25,13 @@ using ClimateMachine.ODESolvers
 using ClimateMachine.VariableTemplates
 using ClimateMachine.SingleStackUtils
 
-using ClimateMachine.BalanceLaws
+using ClimateMachine.Orientations:
+    Orientation,
+    FlatOrientation,
+    init_aux!,
+    vertical_unit_vector,
+    projection_tangential
+
 import ClimateMachine.BalanceLaws:
     vars_state,
     source!,
@@ -31,8 +39,6 @@ import ClimateMachine.BalanceLaws:
     flux_first_order!,
     compute_gradient_argument!,
     compute_gradient_flux!,
-    update_auxiliary_state!,
-    nodal_update_auxiliary_state!,
     init_state_auxiliary!,
     init_state_prognostic!,
     boundary_state!
@@ -45,21 +51,25 @@ const clima_dir = dirname(dirname(pathof(ClimateMachine)));
 
 include(joinpath(clima_dir, "docs", "plothelpers.jl"));
 
-Base.@kwdef struct BurgersEquation{FT} <: BalanceLaw
+Base.@kwdef struct BurgersEquation{FT, APS, O} <: BalanceLaw
     "Parameters"
-    param_set::AbstractParameterSet = param_set
+    param_set::APS
+    "Orientation model"
+    orientation::O
     "Heat capacity"
     c::FT = 1
     "Vertical dynamic viscosity"
     μv::FT = 1e-4
     "Horizontal dynamic viscosity"
-    μh::FT = 1e-2
-    "Thermal diffusivity"
-    α::FT = 0.01
+    μh::FT = 1
+    "Vertical thermal diffusivity"
+    αv::FT = 1e-2
+    "Horizontal thermal diffusivity"
+    αh::FT = 1
     "IC Gaussian noise standard deviation"
-    σ::FT = 1e-1
+    σ::FT = 5e-2
     "Rayleigh damping"
-    γ::FT = μh / 0.08 / 1e-2 / 1e-2
+    γ::FT = 5
     "Domain height"
     zmax::FT = 1
     "Initial conditions for temperature"
@@ -68,28 +78,58 @@ Base.@kwdef struct BurgersEquation{FT} <: BalanceLaw
     T_bottom::FT = 300.0
     "Top flux (α∇ρcT) at top boundary (Neumann boundary conditions)"
     flux_top::FT = 0.0
+    "Divergence damping coefficient (horizontal)"
+    νd::FT = 1
 end
 
-m = BurgersEquation{FT}();
+orientation = FlatOrientation()
 
-vars_state(::BurgersEquation, ::Auxiliary, FT) = @vars(z::FT, T::FT);
+m = BurgersEquation{FT, typeof(param_set), typeof(orientation)}(
+    param_set = param_set,
+    orientation = orientation,
+);
+
+function vars_state(m::BurgersEquation, st::Auxiliary, FT)
+    @vars begin
+        coord::SVector{3, FT}
+        orientation::vars_state(m.orientation, st, FT)
+    end
+end
 
 vars_state(::BurgersEquation, ::Prognostic, FT) =
     @vars(ρ::FT, ρu::SVector{3, FT}, ρcT::FT);
 
 vars_state(::BurgersEquation, ::Gradient, FT) =
-    @vars(u::SVector{3, FT}, ρcT::FT);
+    @vars(u::SVector{3, FT}, ρcT::FT, ρu::SVector{3, FT});
 
-vars_state(::BurgersEquation, ::GradientFlux, FT) =
-    @vars(μ∇u::SMatrix{3, 3, FT, 9}, α∇ρcT::SVector{3, FT});
+vars_state(::BurgersEquation, ::GradientFlux, FT) = @vars(
+    μ∇u::SMatrix{3, 3, FT, 9},
+    α∇ρcT::SVector{3, FT},
+    νd∇D::SMatrix{3, 3, FT, 9}
+);
+
+function burgers_nodal_init_state_auxiliary!(
+    m::BurgersEquation,
+    aux::Vars,
+    tmp::Vars,
+    geom::LocalGeometry,
+)
+    aux.coord = geom.coord
+end;
 
 function init_state_auxiliary!(
     m::BurgersEquation,
-    aux::Vars,
-    geom::LocalGeometry,
+    state_auxiliary::MPIStateArray,
+    grid,
 )
-    aux.z = geom.coord[3]
-    aux.T = m.initialT
+    init_aux!(m, m.orientation, state_auxiliary, grid)
+
+    nodal_init_state_auxiliary!(
+        m,
+        burgers_nodal_init_state_auxiliary!,
+        state_auxiliary,
+        grid,
+    )
 end;
 
 function init_state_prognostic!(
@@ -99,7 +139,7 @@ function init_state_prognostic!(
     coords,
     t::Real,
 )
-    z = aux.z
+    z = aux.coord[3]
     ε1 = rand(Normal(0, m.σ))
     ε2 = rand(Normal(0, m.σ))
     state.ρ = 1
@@ -108,27 +148,7 @@ function init_state_prognostic!(
     ρw = 0
     state.ρu = SVector(ρu, ρv, ρw)
 
-    state.ρcT = state.ρ * m.c * aux.T
-end;
-
-function update_auxiliary_state!(
-    dg::DGModel,
-    m::BurgersEquation,
-    Q::MPIStateArray,
-    t::Real,
-    elems::UnitRange,
-)
-    nodal_update_auxiliary_state!(heat_eq_nodal_update_aux!, dg, m, Q, t, elems)
-    return true # TODO: remove return true
-end;
-
-function heat_eq_nodal_update_aux!(
-    m::BurgersEquation,
-    state::Vars,
-    aux::Vars,
-    t::Real,
-)
-    aux.T = state.ρcT / (state.ρ * m.c)
+    state.ρcT = state.ρ * m.c * m.initialT
 end;
 
 function compute_gradient_argument!(
@@ -140,18 +160,25 @@ function compute_gradient_argument!(
 )
     transform.ρcT = state.ρcT
     transform.u = state.ρu / state.ρ
+    transform.ρu = state.ρu
 end;
 
 function compute_gradient_flux!(
-    m::BurgersEquation,
+    m::BurgersEquation{FT},
     diffusive::Vars,
     ∇transform::Grad,
     state::Vars,
     aux::Vars,
     t::Real,
-)
-    diffusive.α∇ρcT = m.α * ∇transform.ρcT
+) where {FT}
+    ∇ρu = ∇transform.ρu
+    ẑ = vertical_unit_vector(m.orientation, m.param_set, aux)
+    divergence = tr(∇ρu) - ẑ' * ∇ρu * ẑ
+    diffusive.α∇ρcT = Diagonal(SVector(m.αh, m.αh, m.αv)) * ∇transform.ρcT
     diffusive.μ∇u = Diagonal(SVector(m.μh, m.μh, m.μv)) * ∇transform.u
+    diffusive.νd∇D =
+        Diagonal(SVector(m.νd, m.νd, FT(0))) *
+        Diagonal(SVector(divergence, divergence, FT(0)))
 end;
 
 function source!(
@@ -162,15 +189,17 @@ function source!(
     aux::Vars,
     args...,
 ) where {FT}
-    ẑ = SVector{3, FT}(0, 0, 1)
+    ẑ = vertical_unit_vector(m.orientation, m.param_set, aux)
+    z = aux.coord[3]
     ρ̄ū =
         state.ρ * SVector{3, FT}(
-            0.5 - 2 * (aux.z - m.zmax / 2)^2,
-            0.5 - 2 * (aux.z - m.zmax / 2)^2,
+            0.5 - 2 * (z - m.zmax / 2)^2,
+            0.5 - 2 * (z - m.zmax / 2)^2,
             0.0,
         )
     ρu_p = state.ρu - ρ̄ū
-    source.ρu -= m.γ * (ρu_p - ẑ' * ρu_p * ẑ)
+    source.ρu -=
+        m.γ * projection_tangential(m.orientation, m.param_set, aux, ρu_p)
 end;
 
 function flux_first_order!(
@@ -199,6 +228,7 @@ function flux_second_order!(
 )
     flux.ρcT -= diffusive.α∇ρcT
     flux.ρu -= diffusive.μ∇u
+    flux.ρu -= diffusive.νd∇D
 end;
 
 function boundary_state!(
@@ -250,7 +280,7 @@ end;
 
 N_poly = 5;
 
-nelem_vert = 20;
+nelem_vert = 10;
 
 zmax = m.zmax;
 
@@ -264,14 +294,14 @@ driver_config = ClimateMachine.SingleStackConfiguration(
     numerical_flux_first_order = CentralNumericalFluxFirstOrder(),
 );
 
-t0 = FT(0)
-timeend = FT(10)
+t0 = FT(0);
+timeend = FT(1);
 
 Δ = min_node_distance(driver_config.grid)
 
-given_Fourier = FT(0.08);
-Fourier_bound = given_Fourier * Δ^2 / max(m.α, m.μh);
-Courant_bound = FT(0.1) * Δ
+given_Fourier = FT(0.5);
+Fourier_bound = given_Fourier * Δ^2 / max(m.αh, m.μh, m.νd);
+Courant_bound = FT(0.5) * Δ;
 dt = min(Fourier_bound, Courant_bound)
 
 solver_config =
@@ -289,39 +319,37 @@ state_vars = get_vars_from_nodal_stack(
     driver_config.grid,
     solver_config.Q,
     vars_state(m, Prognostic(), FT),
-    i = 1,
-    j = 1,
 );
-aux_vars = get_vars_from_nodal_stack(
-    driver_config.grid,
-    solver_config.dg.state_auxiliary,
-    vars_state(m, Auxiliary(), FT),
-    i = 1,
-    j = 1,
-    exclude = [z_key],
-);
-all_vars = OrderedDict(state_vars..., aux_vars...);
 
-export_plot_snapshot(
+state_data = Dict[state_vars]  # store initial condition at ``t=0``
+time_data = FT[0]                                      # store time data
+
+export_plot(
     z,
-    all_vars,
+    state_data,
     ("ρcT",),
-    joinpath(output_dir, "initial_condition_T.png"),
-    z_label,
+    joinpath(output_dir, "initial_condition_T_nodal.png"),
+    xlabel = "ρcT at southwest node",
+    ylabel = z_label,
+    time_data = time_data,
 );
-export_plot_snapshot(
+export_plot(
     z,
-    all_vars,
+    state_data,
     ("ρu[1]",),
-    joinpath(output_dir, "initial_condition_u.png"),
-    z_label,
+    joinpath(output_dir, "initial_condition_u_nodal.png"),
+    xlabel = "ρu at southwest node",
+    ylabel = z_label,
+    time_data = time_data,
 );
-export_plot_snapshot(
+export_plot(
     z,
-    all_vars,
+    state_data,
     ("ρu[2]",),
-    joinpath(output_dir, "initial_condition_v.png"),
-    z_label,
+    joinpath(output_dir, "initial_condition_v_nodal.png"),
+    xlabel = "ρv at southwest node",
+    ylabel = z_label,
+    time_data = time_data,
 );
 
 state_vars_var = get_horizontal_variance(
@@ -336,24 +364,30 @@ state_vars_avg = get_horizontal_mean(
     vars_state(m, Prognostic(), FT),
 );
 
-export_plot_snapshot(
+data_avg = Dict[state_vars_avg]
+data_var = Dict[state_vars_var]
+
+export_plot(
     z,
-    state_vars_avg,
+    data_avg,
     ("ρu[1]",),
-    joinpath(output_dir, "initial_condition_avg_u.png"),
-    z_label,
+    joinpath(output_dir, "initial_condition_avg_u.png");
+    xlabel = "Horizontal mean of ρu",
+    ylabel = z_label,
+    time_data = time_data,
 );
-export_plot_snapshot(
+export_plot(
     z,
-    state_vars_var,
+    data_var,
     ("ρu[1]",),
     joinpath(output_dir, "initial_condition_variance_u.png"),
-    z_label,
+    xlabel = "Horizontal variance of ρu",
+    ylabel = z_label,
+    time_data = time_data,
 );
 
 const n_outputs = 5;
-
-const every_x_simulation_time = ceil(Int, timeend / n_outputs);
+const every_x_simulation_time = timeend / n_outputs;
 
 dims = OrderedDict(z_key => collect(z));
 
@@ -362,6 +396,9 @@ data_var[1] = state_vars_var
 
 data_avg = Dict[Dict([k => Dict() for k in 0:n_outputs]...),]
 data_avg[1] = state_vars_avg
+
+data_nodal = Dict[Dict([k => Dict() for k in 0:n_outputs]...),]
+data_nodal[1] = state_vars
 
 step = [0];
 callback = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
@@ -375,9 +412,18 @@ callback = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
         solver_config.Q,
         vars_state(m, Prognostic(), FT),
     )
+    state_vars = get_vars_from_nodal_stack(
+        driver_config.grid,
+        solver_config.Q,
+        vars_state(m, Prognostic(), FT),
+        i = 1,
+        j = 1,
+    )
     step[1] += 1
     push!(data_var, state_vars_var)
     push!(data_avg, state_vars_avg)
+    push!(data_nodal, state_vars)
+    push!(time_data, gettime(solver_config.solver))
     nothing
 end;
 
@@ -387,33 +433,46 @@ export_plot(
     z,
     data_avg,
     ("ρu[1]"),
-    joinpath(output_dir, "solution_vs_time_u.png"),
-    z_label,
-    xlabel = "Horizontal mean rho*u",
+    joinpath(output_dir, "solution_vs_time_u_avg.png"),
+    xlabel = "Horizontal mean of ρu",
+    ylabel = z_label,
+    time_data = time_data,
 );
 export_plot(
     z,
     data_var,
     ("ρu[1]"),
     joinpath(output_dir, "variance_vs_time_u.png"),
-    z_label,
-    xlabel = "Horizontal variance rho*u",
+    xlabel = "Horizontal variance of ρu",
+    ylabel = z_label,
+    time_data = time_data,
 );
 export_plot(
     z,
     data_avg,
     ("ρcT"),
-    joinpath(output_dir, "solution_vs_time_T.png"),
-    z_label,
-    xlabel = "Horizontal mean rho*c*T",
+    joinpath(output_dir, "solution_vs_time_T_avg.png"),
+    xlabel = "Horizontal mean of ρcT",
+    ylabel = z_label,
+    time_data = time_data,
 );
 export_plot(
     z,
     data_var,
-    ("ρu[3]"),
-    joinpath(output_dir, "variance_vs_time_w.png"),
-    z_label,
-    xlabel = "Horizontal variance rho*w",
+    ("ρcT"),
+    joinpath(output_dir, "variance_vs_time_T.png"),
+    xlabel = "Horizontal variance of ρcT",
+    ylabel = z_label,
+    time_data = time_data,
+);
+export_plot(
+    z,
+    data_nodal,
+    ("ρu[1]"),
+    joinpath(output_dir, "solution_vs_time_u_nodal.png"),
+    xlabel = "ρu at southwest node",
+    ylabel = z_label,
+    time_data = time_data,
 );
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
