@@ -241,7 +241,8 @@ function initialize!(
     Q,
     Qrhs,
     solver::BatchedGeneralizedMinimalResidual,
-    args...,
+    args...;
+    threshold = nothing,
 )
     g0 = solver.g0
     krylov_basis = solver.krylov_basis
@@ -287,10 +288,21 @@ function initialize!(
     wait(device, event)
 
     residual_norm = maximum(resnorms)
-    threshold = rtol * residual_norm
     converged = false
-    if threshold < atol
-        converged = true
+
+    # when restarting, we do not want to overwrite the initial threshold
+    if threshold === nothing
+        threshold = rtol * residual_norm
+        if threshold < atol
+            converged = true
+        end
+    else
+        # if restarting, then threshold has
+        # already been computed and we simply check
+        # the norm
+        if residual_norm < threshold
+            converged = true
+        end
     end
 
     @info "Calling initialize: converged = $converged, residual (max) = $residual_norm"
@@ -434,7 +446,7 @@ function doiteration!(
     @info "after bgmres iterations, converged, j, residual_norm : ",  converged, j, residual_norm
 
     # if not converged, then restart
-    converged || initialize!(linearoperator!, Q, Qrhs, solver, args...)
+    converged || initialize!(linearoperator!, Q, Qrhs, solver, args...; threshold = threshold)
 
     (converged, j, residual_norm)
 end
