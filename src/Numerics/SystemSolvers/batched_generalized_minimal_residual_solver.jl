@@ -10,13 +10,13 @@ mutable struct BatchedGeneralizedMinimalResidual{
     FRS,
     FPR,
     BRS,
-    BPR
+    BPR,
 } <: AbstractIterativeSystemSolver
 
     "global Krylov basis at present step"
     krylov_basis::AT
     "global Krylov basis at previous step"
-    krylov_basis_m::AT
+    krylov_basis_prev::AT
     "global batched Krylov basis"
     batched_krylov_basis::NTuple{MP1, Matrix{T}}
     "Hessenberg matrix in each column"
@@ -33,8 +33,6 @@ mutable struct BatchedGeneralizedMinimalResidual{
     max_iter::I
     "total number of batched columns"
     batch_size::I
-    "iterations to reach convergence in each column"
-    iterconv::Vector{I}
     "residual norm in each column"
     resnorms::Vector{T}
     forward_reshape::FRS
@@ -52,30 +50,38 @@ mutable struct BatchedGeneralizedMinimalResidual{
         forward_reshape = size(Q),
         forward_permute = Tuple(1:length(size(Q))),
     ) where {AT}
-
+        # Since the application of linearoperator! is not currently batch-able,
+        # we need two temporary work vectors to hold the current and previous Krylov
+        # basis vector
         krylov_basis = similar(Q)
-        krylov_basis_m = similar(Q)
-        # TODO: Need to check this. These are work vectors to
-        # 'batch' the krylov basis vectors
-        # batched_krylov_basis = -zeros(eltype(AT), (M + 1, Nbatch, dofperbatch))
-        batched_krylov_basis = ntuple(i -> zeros(eltype(AT), dofperbatch, Nbatch),  M + 1)
+        krylov_basis_prev = similar(Q)
 
-        # H = -zeros(eltype(AT), (Nbatch, M + 1, M))
-        H = ntuple(i -> zeros(eltype(AT), M + 1, M), Nbatch)
-        # g0 = -zeros(eltype(AT), (Nbatch, M + 1))
-        g0 = ntuple(i -> zeros(eltype(AT), M + 1), Nbatch)
+        # Get ArrayType information
+        if isa(array_device(Q), CPU)
+            ArrayType = Array
+        else
+            # Sanity check since we don't support anything else
+            @assert isa(array_device(Q), CUDADevice)
+            ArrayType = CuArray
+        end
 
-        y = ntuple(i -> zeros(eltype(AT), M + 1), Nbatch)
-    
-        sol = zeros(eltype(AT), dofperbatch, Nbatch)
+        # Create storage for holding the batched Krylov basis
+        batched_krylov_basis = ntuple(
+            i -> ArrayType(-zeros(eltype(AT), dofperbatch, Nbatch)),
+            M + 1,
+        )
+        # Create storage for doing the batched Arnoldi process
+        H = ntuple(i -> ArrayType(-zeros(eltype(AT), M + 1, M)), Nbatch)
+        g0 = ntuple(i -> ArrayType(-zeros(eltype(AT), M + 1)), Nbatch)
+        y = ntuple(i -> ArrayType(-zeros(eltype(AT), M + 1)), Nbatch)
+        sol = ArrayType(-zeros(eltype(AT), dofperbatch, Nbatch))
+        resnorms = ArrayType(-zeros(eltype(AT), Nbatch))
 
         @assert dofperbatch * Nbatch == length(Q)
 
-        iterconv = fill(-1, Nbatch)
-        resnorms = -zeros(eltype(AT), Nbatch)
-
         FRS = typeof(forward_reshape)
         FPR = typeof(forward_permute)
+
         # define the back permutation and reshape
         backward_permute = Tuple(sortperm([forward_permute...]))
         tmp_reshape_tuple_b = [forward_reshape...]
@@ -84,14 +90,9 @@ mutable struct BatchedGeneralizedMinimalResidual{
         BRS = typeof(backward_reshape)
         BPR = typeof(backward_permute)
 
-        @info "Initialize bgmres : "
-        @show dofperbatch, Nbatch, M
-        @show forward_reshape, forward_permute
-        @show backward_reshape, backward_permute
-
-        new{M + 1, Nbatch, typeof(Nbatch), eltype(Q), AT,  FRS, FPR, BRS, BPR}(
+        new{M + 1, Nbatch, typeof(Nbatch), eltype(Q), AT, FRS, FPR, BRS, BPR}(
             krylov_basis,
-            krylov_basis_m,
+            krylov_basis_prev,
             batched_krylov_basis,
             H,
             g0,
@@ -101,7 +102,6 @@ mutable struct BatchedGeneralizedMinimalResidual{
             atol,
             M,
             Nbatch,
-            iterconv,
             resnorms,
             forward_reshape,
             forward_permute,
@@ -145,13 +145,6 @@ function BatchedGeneralizedMinimalResidual(
     rtol = sqrt(eps(eltype(Q))),
     max_iteration = nothing,
 )
-
-    # Need to determine array type for storage vectors
-    if isa(Q.data, Array)
-        ArrayType = Array
-    else
-        ArrayType = CuArray
-    end
 
     grid = dg.grid
     topology = grid.topology
@@ -206,9 +199,9 @@ function BatchedGeneralizedMinimalResidual(
     # permute [ni, nj, nk, num_states, nvertelem, nhorzelem] 
     # to      [nvertelem, nk, num_states, ni, nj, nhorzelem]
     permute_size = length(reshaping_tup)
-    permute_tuple_f = (dim + 2, dim, dim + 1, (1:dim-1)..., permute_size)
+    permute_tuple_f = (dim + 2, dim, dim + 1, (1:(dim - 1))..., permute_size)
 
-    return NewBatchedGeneralizedMinimalResidual(
+    return BatchedGeneralizedMinimalResidual(
         Q,
         n,
         m;
@@ -220,12 +213,7 @@ function BatchedGeneralizedMinimalResidual(
     )
 end
 
-@inline function convert_structure!(
-    x,
-    y,
-    reshape_tuple,
-    permute_tuple,
-)
+@inline function convert_structure!(x, y, reshape_tuple, permute_tuple)
     alias_y = reshape(y, reshape_tuple)
     permute_y = permutedims(alias_y, permute_tuple)
     x[:] .= permute_y[:]
@@ -244,11 +232,11 @@ function initialize!(
     args...;
     threshold = nothing,
 )
+
     g0 = solver.g0
     krylov_basis = solver.krylov_basis
     rtol, atol = solver.rtol, solver.atol
 
-    iterconv = solver.iterconv
     batched_krylov_basis = solver.batched_krylov_basis
     forward_reshape = solver.forward_reshape
     forward_permute = solver.forward_permute
@@ -267,9 +255,9 @@ function initialize!(
     # FIXME: Can we make linearoperator! batch-able?
     # store the initial residual in krylov_basis[1] = r0/|r0|
     linearoperator!(krylov_basis, Q, args...)
-    @. krylov_basis = Qrhs - krylov_basis
+    krylov_basis .= Qrhs .- krylov_basis
 
-    convert_structure!( 
+    convert_structure!(
         batched_krylov_basis[1],
         krylov_basis,
         forward_reshape,
@@ -279,7 +267,6 @@ function initialize!(
     event = Event(device)
     event = batched_initialize!(device, groupsize)(
         resnorms,
-        iterconv,
         g0,
         batched_krylov_basis[1];
         ndrange = solver.batch_size,
@@ -305,8 +292,6 @@ function initialize!(
         end
     end
 
-    @info "Calling initialize: converged = $converged, residual (max) = $residual_norm"
-
     converged, max(threshold, atol)
 end
 
@@ -314,19 +299,16 @@ end
 update batched_krylov_basis r0/|r0|
 update rhs g0 = βe1, where β = |r0|
 update resnorms = |r0|
-update iterconv = 0
 """
-@kernel function batched_initialize!(resnorms, iterconv, g0, batched_krylov_basis)
-    cidx = @index(Global)
+@kernel function batched_initialize!(resnorms, g0, batched_krylov_basis)
 
+    cidx = @index(Global)
     FT = eltype(batched_krylov_basis)
     fill!(g0[cidx], FT(0.0))
-
     local_residual_norm = norm(batched_krylov_basis[:, cidx], false)
     g0[cidx][1] = local_residual_norm
-    @. batched_krylov_basis[:, cidx] /= local_residual_norm
+    batched_krylov_basis[:, cidx] ./= local_residual_norm
     resnorms[cidx] = local_residual_norm
-    iterconv[cidx] = 0
 
     nothing
 end
@@ -339,14 +321,14 @@ function doiteration!(
     threshold,
     args...,
 )
+
     FT = eltype(Q)
     krylov_basis = solver.krylov_basis
-    krylov_basis_m = solver.krylov_basis_m
+    krylov_basis_prev = solver.krylov_basis_prev
     Hs = solver.H
     g0s = solver.g0
     ys = solver.y
     sols = solver.sol
-    iterconv = solver.iterconv
     batched_krylov_basis = solver.batched_krylov_basis
     forward_reshape = solver.forward_reshape
     forward_permute = solver.forward_permute
@@ -364,26 +346,26 @@ function doiteration!(
 
     converged = false
     residual_norm = typemax(FT)
-    Ωs = ntuple(i->LinearAlgebra.Rotation{FT}([]), solver.batch_size)
+    Ωs = ntuple(i -> LinearAlgebra.Rotation{FT}([]), solver.batch_size)
     j = 1
     @info "Current threshold: $threshold"
-    for outer j in 1:solver.max_iter
+    for outer j in 1:(solver.max_iter)
         # FIXME: To make this a truly batched method, we need to be able
         # to make operator application batch-able.
         # Global operator matvec
 
-        convert_structure!( 
-            krylov_basis_m,
+        convert_structure!(
+            krylov_basis_prev,
             batched_krylov_basis[j],
             backward_reshape,
             backward_permute,
         )
 
-        linearoperator!(krylov_basis, krylov_basis_m, args...)
+        linearoperator!(krylov_basis, krylov_basis_prev, args...)
 
         # Now that we have a global Krylov vector, we reshape and batch
         # the Arnoldi iterations
-        convert_structure!( 
+        convert_structure!(
             batched_krylov_basis[j + 1],
             krylov_basis,
             forward_reshape,
@@ -412,14 +394,8 @@ function doiteration!(
         end
     end
 
-       ## compose the solution todo use batched_krylov_basis
-    #todo put in the initilization
-    convert_structure!( 
-        sols,
-        Q,
-        forward_reshape,
-        forward_permute,
-    )
+    # Reshape the solution vector
+    convert_structure!(sols, Q, forward_reshape, forward_permute)
 
     # solve the triangular system and construct the
     # gmres iterate in each column
@@ -436,30 +412,44 @@ function doiteration!(
     )
     wait(device, event)
 
-    convert_structure!( 
-        Q,
-        sols,
-        backward_reshape,
-        backward_permute,
-    )
-
-    @info "after bgmres iterations, converged, j, residual_norm : ",  converged, j, residual_norm
+    # Unwind reshaping and return solution in standard format
+    convert_structure!(Q, sols, backward_reshape, backward_permute)
 
     # if not converged, then restart
-    converged || initialize!(linearoperator!, Q, Qrhs, solver, args...; threshold = threshold)
+    converged || initialize!(
+        linearoperator!,
+        Q,
+        Qrhs,
+        solver,
+        args...;
+        threshold = threshold,
+    )
 
     (converged, j, residual_norm)
 end
 
-@kernel function batched_arnoldi_process!(resnorms, g0s, Hs, Ωs, batched_krylov_basis, j)
+@kernel function batched_arnoldi_process!(
+    resnorms,
+    g0s,
+    Hs,
+    Ωs,
+    batched_krylov_basis,
+    j,
+)
+
     cidx = @index(Global)
     g0 = g0s[cidx]
     H = Hs[cidx]
     Ω = Ωs[cidx]
 
     for i in 1:j
-        H[i, j] = dot(batched_krylov_basis[j + 1][:, cidx], batched_krylov_basis[i][:, cidx], false)
-        @. batched_krylov_basis[j + 1][:, cidx] -= H[i, j] * batched_krylov_basis[i][:, cidx]
+        H[i, j] = dot(
+            batched_krylov_basis[j + 1][:, cidx],
+            batched_krylov_basis[i][:, cidx],
+            false,
+        )
+        batched_krylov_basis[j + 1][:, cidx] .-=
+            H[i, j] * batched_krylov_basis[i][:, cidx]
     end
     H[j + 1, j] = norm(batched_krylov_basis[j + 1][:, cidx], false)
     batched_krylov_basis[j + 1][:, cidx] ./= H[j + 1, j]
@@ -481,7 +471,15 @@ end
     nothing
 end
 
-@kernel function construct_batched_gmres_iterate!(batched_krylov_basis, Hs, g0s, ys, sols, j)
+@kernel function construct_batched_gmres_iterate!(
+    batched_krylov_basis,
+    Hs,
+    g0s,
+    ys,
+    sols,
+    j,
+)
+
     cidx = @index(Global)
     g0 = g0s[cidx]
     H = Hs[cidx]
@@ -491,5 +489,6 @@ end
     for i in 1:j
         sols[:, cidx] .+= y[i] * batched_krylov_basis[i][:, cidx]
     end
+
     nothing
 end
