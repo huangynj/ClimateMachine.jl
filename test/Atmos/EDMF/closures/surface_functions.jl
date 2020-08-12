@@ -56,7 +56,7 @@ function env_surface_covariances(
 
     θ_liq_surface_flux = m.surface_shf/Π/_cp_m
     q_tot_surface_flux = m.surface_lhf/lv
-    oblength = FT(-100)
+    oblength = -FT(100)
     ustar = FT(0.28)
     zLL = FT(20) # how to get the z first interior ?
     if oblength < 0

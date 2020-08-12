@@ -46,28 +46,26 @@ function entr_detr(
 
     # compute limiters
     εt_lim = εt_limiter(w_up, sqrt_ϵ)
-    ε_lim = ε_limiter(up_area, sqrt_ϵ)
-    δ_lim = δ_limiter(up_area, sqrt_ϵ)
+    ε_lim  = ε_limiter(up_area, sqrt_ϵ)
+    δ_lim  = δ_limiter(up_area, sqrt_ϵ)
     # compute entrainment/detrainmnet components
     # ε_trb = 2 * up_area * entr.c_t * sqrt_tke / max( (w_up * up_area * up_a[i].updraft_top),FT(1e-4))
     ε_trb = 2 * up_area * entr.c_t * sqrt_tke / max( (w_up * up_area * FT(500)),sqrt_ϵ)*εt_lim
-    ε_dyn = λ / max(abs(w_up), w_min) * (D_ε + M_ε + ε_lim) + FT(0.01)/(1+z)
+    ε_dyn = λ / max(abs(w_up), w_min) * (D_ε + M_ε + ε_lim) + FT(10)/(1+z)
     δ_dyn = λ / max(abs(w_up), w_min) * (D_δ + M_δ + δ_lim)
 
 
     ε_dyn = min(max(ε_dyn,FT(0)), FT(0.1))
     δ_dyn = min(max(δ_dyn,FT(0)), FT(0.1))
     ε_trb = min(max(ε_trb,FT(0)), FT(0.1))
+    
 
     return ε_dyn ,δ_dyn, ε_trb
 end;
 
-# ε_limiter(a_up::FT, ϵ::FT) where {FT} = 1+10*(1-1/(1+exp(-FT(0.1)*a_up/ϵ)))
-# δ_limiter(a_up::FT, ϵ::FT) where {FT} = 1+10*(1-1/(1+exp(-FT(0.1)*(1-a_up)/ϵ)))
-
-ε_limiter(a_up::FT, ϵ::FT)  where {FT} = 1*exp(-FT(0.1)*a_up/ϵ)
-εt_limiter(w_up::FT, ϵ::FT)  where {FT} = 1*exp(-FT(0.2)*w_up/ϵ)
-δ_limiter(a_up::FT, ϵ::FT)  where {FT} = 1*exp(-FT(0.1)*(1-a_up)/ϵ)
+ε_limiter(a_up::FT, ϵ::FT)   where {FT} = 1+10*(1-1/(1+exp(-FT(0.1)*a_up/ϵ)))
+δ_limiter(a_up::FT, ϵ::FT)   where {FT} = 1+10*(1-1/(1+exp(-FT(0.1)*(1-a_up)/ϵ)))
+εt_limiter(w_up::FT, ϵ::FT)  where {FT} = 1+10*(1-1/(1+exp(-FT(0.2)*w_up/ϵ))) 
 
 # ε_limiter(a_up::FT, ϵ::FT) where {FT} = 1
 # δ_limiter(a_up::FT, ϵ::FT) where {FT} = 1
