@@ -793,8 +793,15 @@ function numerical_flux_first_order!(
     )
 
     u⁻ = ρu⁻ / ρ⁻
+    uᵀn⁻ = u⁻' * normal_vector
     e⁻ = ρe⁻ / ρ⁻
     h⁻ = total_specific_enthalpy(ts⁻, e⁻)
+    p⁻ = pressure(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁻,
+        state_auxiliary⁻,
+    )
     c⁻ = soundspeed_air(ts⁻)
 
     ρ⁺ = state_conservative⁺.ρ
@@ -808,49 +815,46 @@ function numerical_flux_first_order!(
     )
 
     u⁺ = ρu⁺ / ρ⁺
+    uᵀn⁺ = u⁺' * normal_vector
     e⁺ = ρe⁺ / ρ⁺
     h⁺ = total_specific_enthalpy(ts⁺, e⁺)
+    p⁺ = pressure(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁺,
+        state_auxiliary⁺,
+    )
     c⁺ = soundspeed_air(ts⁺)
 
+    ρ̃ = sqrt(ρ⁻ * ρ⁺)
     ũ = roe_average(ρ⁻, ρ⁺, u⁻, u⁺)
     h̃ = roe_average(ρ⁻, ρ⁺, h⁻, h⁺)
     c̃ = sqrt(roe_average(ρ⁻, ρ⁺, c⁻^2, c⁺^2))
-
-    # chosen by fair dice roll
-    # guaranteed to be random
-    ω = FT(π) / 3
-    δ = FT(π) / 5
-    random_unit_vector = SVector(sin(ω) * cos(δ), cos(ω) * cos(δ), sin(δ))
-
-    # tangent space basis
-    τ1 = random_unit_vector × normal_vector
-    τ2 = τ1 × normal_vector
 
     ũᵀn = ũ' * normal_vector
     ũc̃⁻ = ũ - c̃ * normal_vector
     ũc̃⁺ = ũ + c̃ * normal_vector
 
-    Λ = SDiagonal(
-        abs(ũᵀn - c̃),
-        abs(ũᵀn),
-        abs(ũᵀn),
-        abs(ũᵀn),
-        abs(ũᵀn + c̃),
-    )
-
-    M = hcat(
-        SVector(1, ũc̃⁻[1], ũc̃⁻[2], ũc̃⁻[3], h̃ - c̃ * ũᵀn),
-        SVector(0, τ1[1], τ1[2], τ1[3], τ1' * ũ),
-        SVector(0, τ2[1], τ2[2], τ2[3], τ2' * ũ),
-        SVector(1, ũ[1], ũ[2], ũ[3], ũ' * ũ / 2 + Φ - _T_0 * _cv_d),
-        SVector(1, ũc̃⁺[1], ũc̃⁺[2], ũc̃⁺[3], h̃ + c̃ * ũᵀn),
-    )
-
     Δρ = ρ⁺ - ρ⁻
-    Δρu = ρu⁺ - ρu⁻
-    Δρe = ρe⁺ - ρe⁻
-    Δstate = SVector(Δρ, Δρu[1], Δρu[2], Δρu[3], Δρe)
+    Δp = p⁺ - p⁻
+    Δu = u⁺ - u⁻
+    Δuᵀn = Δu' * normal_vector
 
-    parent(fluxᵀn) .-= M * Λ * (M \ Δstate) / 2
+    w1 = abs(ũᵀn - c̃) * (Δp - ρ̃ * c̃ * Δuᵀn) / (2 * c̃^2)
+    w2 = abs(ũᵀn + c̃) * (Δp + ρ̃ * c̃ * Δuᵀn) / (2 * c̃^2)
+    w3 = abs(ũᵀn) * (Δρ - Δp / c̃^2)
+    w4 = abs(ũᵀn) * ρ̃
+
+    fluxᵀn.ρ -= (w1 + w2 + w3) / 2
+    fluxᵀn.ρu -=
+        (w1 * ũc̃⁻ + w2 * ũc̃⁺ + w3 * ũ + w4 * (Δu - Δuᵀn * normal_vector)) /
+        2
+    fluxᵀn.ρe -=
+        (
+            w1 * (h̃ - c̃ * ũᵀn) +
+            w2 * (h̃ + c̃ * ũᵀn) +
+            w3 * (ũ' * ũ / 2 + Φ - _T_0 * _cv_d) +
+            w4 * (ũ' * Δu - ũᵀn * Δuᵀn)
+        ) / 2
 end
 end # module
