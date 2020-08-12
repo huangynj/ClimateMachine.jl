@@ -29,7 +29,7 @@ end
 let
     for T in [Float32, Float64]
         ϵ = eps(T)
-        
+
         @testset "($ArrayType, $T) Basic Test" begin
             Random.seed!(42)
 
@@ -46,7 +46,7 @@ let
                 A[i, i, :] .+= 10i
             end
 
-            ss = size(b)[1] 
+            ss = size(b)[1]
             bgmres = BatchedGeneralizedMinimalResidual(
                 b,
                 n,
