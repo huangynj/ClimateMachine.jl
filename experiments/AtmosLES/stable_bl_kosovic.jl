@@ -331,9 +331,8 @@ function main()
     zmax = FT(400)
 
     t0 = FT(0)
-
-    # For a full-run, please set the timeend to 3600*6 seconds
-    # For the test we set this to == 30 minutes
+    
+    # Required simulation time == 9hours
     timeend = FT(3600 * 9)
     CFLmax = FT(0.4)
 

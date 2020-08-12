@@ -329,8 +329,7 @@ function main()
 
     t0 = FT(0)
 
-    # For a full-run, please set the timeend to 3600*6 seconds
-    # For the test we set this to == 30 minutes
+    # Full simulation requires 16+ hours of simulated time 
     timeend = FT(3600 * 9)
     CFLmax = FT(0.4)
 
