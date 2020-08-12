@@ -74,6 +74,8 @@ mutable struct BatchedGeneralizedMinimalResidual{
     batch_size::I
     "residual norm in each column"
     resnorms::Vector{T}
+    "residual norm in each column"
+    resnorms0::Vector{T}
     forward_reshape::FRS
     forward_permute::FPR
     backward_reshape::BRS
@@ -115,6 +117,7 @@ mutable struct BatchedGeneralizedMinimalResidual{
         y = ntuple(i -> ArrayType(-zeros(eltype(AT), M + 1)), Nbatch)
         sol = ArrayType(-zeros(eltype(AT), dofperbatch, Nbatch))
         resnorms = ArrayType(-zeros(eltype(AT), Nbatch))
+        resnorms0 = ArrayType(-zeros(eltype(AT), Nbatch))
 
         @assert dofperbatch * Nbatch == length(Q)
 
@@ -142,6 +145,7 @@ mutable struct BatchedGeneralizedMinimalResidual{
             M,
             Nbatch,
             resnorms,
+            resnorms0,
             forward_reshape,
             forward_permute,
             backward_reshape,
@@ -254,7 +258,7 @@ function initialize!(
     Qrhs,
     solver::BatchedGeneralizedMinimalResidual,
     args...;
-    threshold = nothing,
+    restart = false,
 )
     g0 = solver.g0
     krylov_basis = solver.krylov_basis
@@ -264,7 +268,7 @@ function initialize!(
     forward_reshape = solver.forward_reshape
     forward_permute = solver.forward_permute
     resnorms = solver.resnorms
-
+    resnorms0 = solver.resnorms0
     # Get device and groupsize information
     device = array_device(Q)
     if isa(device, CPU)
@@ -300,28 +304,31 @@ function initialize!(
     )
     wait(device, event)
 
-    # Current stopping criteria is based on the maximal column norm
-    residual_norm = maximum(resnorms)
-    converged = false
+    
 
     # When restarting, we do not want to overwrite the initial threshold,
     # otherwise we may not get an accurate indication that we have sufficiently
     # reduced the GMRES residual.
-    if threshold === nothing
-        threshold = rtol * residual_norm
-        if threshold < atol
-            converged = true
-        end
-    else
-        # if restarting, then threshold has
-        # already been computed and we simply check
-        # the current residual norm
-        if residual_norm < threshold
-            converged = true
-        end
+    if !restart
+        resnorms0 .= resnorms
     end
 
-    converged, max(threshold, atol)
+    converged,  residual_norm = check_convergence(resnorms, resnorms0, atol, rtol)
+    # if threshold === nothing
+    #     threshold = rtol * residual_norm
+    #     if threshold < atol
+    #         converged = true
+    #     end
+    # else
+    #     # if restarting, then threshold has
+    #     # already been computed and we simply check
+    #     # the current residual norm
+    #     if residual_norm < threshold
+    #         converged = true
+    #     end
+    # end
+
+    converged, residual_norm
 end
 
 function doiteration!(
@@ -329,7 +336,6 @@ function doiteration!(
     Q,
     Qrhs,
     solver::BatchedGeneralizedMinimalResidual,
-    threshold,
     args...,
 )
     FT = eltype(Q)
@@ -340,11 +346,14 @@ function doiteration!(
     ys = solver.y
     sols = solver.sol
     batched_krylov_basis = solver.batched_krylov_basis
+    rtol, atol = solver.rtol, solver.atol
+    
     forward_reshape = solver.forward_reshape
     forward_permute = solver.forward_permute
     backward_reshape = solver.backward_reshape
     backward_permute = solver.backward_permute
     resnorms = solver.resnorms
+    resnorms0 = solver.resnorms0
 
     # Get device and groupsize information
     device = array_device(Q)
@@ -397,11 +406,14 @@ function doiteration!(
         # Current stopping criteria is based on the maximal column norm
         # TODO: Once we are able to batch the operator application, we
         # should revisit the termination criteria.
-        residual_norm = maximum(resnorms)
-        if residual_norm < threshold
-            converged = true
-            break
-        end
+        converged, residual_norm = check_convergence(resnorms, resnorms0, atol, rtol)
+        if converged; break; end
+
+        # residual_norm = maximum(resnorms)
+        # if residual_norm < threshold
+        #     converged = true
+        #     break
+        # end
     end
 
     # Reshape the solution vector to construct the new GMRES iterate
@@ -432,7 +444,7 @@ function doiteration!(
         Qrhs,
         solver,
         args...;
-        threshold = threshold,
+        restart = true,
     )
 
     (converged, j, residual_norm)
@@ -551,3 +563,15 @@ end
     convert_structure!(x, y.data, reshape_tuple, permute_tuple)
 @inline convert_structure!(x::MPIStateArray, y, reshape_tuple, permute_tuple) =
     convert_structure!(x.data, y, reshape_tuple, permute_tuple)
+
+
+
+function check_convergence(resnorms, resnorms0, atol, rtol)
+
+    # Current stopping criteria is based on the maximal column norm
+    residual_norm = maximum(resnorms)
+    residual_norm0 = maximum(resnorms0)
+    threshold = residual_norm0 * rtol
+    converged  = (residual_norm < threshold)
+    return converged, residual_norm
+end
