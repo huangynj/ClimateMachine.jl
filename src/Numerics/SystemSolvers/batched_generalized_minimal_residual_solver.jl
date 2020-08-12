@@ -21,10 +21,24 @@ to allocate the solver internal state, `dofperbatch` is the size of each batched
 system (assumed to be the same throughout), `Nbatch` is the total number
 of independent linear systems, and `rtol` specifies the convergence
 criterion based on the relative residual norm (max across all batched systems).
-This object is intended to be passed to the [`linearsolve!`](@ref) command.
+The argument `forward_reshape` is a tuple of integers denoting the reshaping
+(if required) of the solution vectors for batching the Arnoldi routines.
+The argument `forward_permute` describes precisely which indices of the
+array `Q` to permute. This object is intended to be passed to
+the [`linearsolve!`](@ref) command.
 
 This uses a batched-version of the restarted Generalized Minimal Residual method
 of Saad and Schultz (1986).
+
+# Note
+Eventually, we'll want to do something like this:
+
+    i = @index(Global)
+    linearoperator!(Q[:, :, :, i], args...)
+
+This will help stop the need for constantly
+reshaping the work arrays. It would also potentially
+save us some memory.
 """
 mutable struct BatchedGeneralizedMinimalResidual{
     MP1,
