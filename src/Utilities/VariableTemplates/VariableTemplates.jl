@@ -315,11 +315,22 @@ end
     expr
 end
 
+export unroll_map
+unroll_map(f::F, N::Int, args...) where {F} = unroll_map(f, Val(N), args...)
+@generated function unroll_map(f::F, ::Val{N}, args...) where {F, N}
+    quote
+        Base.@_inline_meta
+        Base.Cartesian.@nexprs $N i -> f(Val(i), args...)
+    end
+end
+
+Base.@propagate_inbounds Base.getindex(v::AbstractVars, i::Int) =
+    Base.getindex(v, Val(i))
 
 Base.@propagate_inbounds function Base.getindex(
     v::AbstractVars{NTuple{N, T}, A, offset},
-    i::Int,
-) where {N, T, A, offset}
+    ::Val{i},
+) where {N, T, A, offset, i}
     # 1 <= i <= N
     array = parent(v)
     if v isa Vars
