@@ -1,7 +1,6 @@
 module Atmos
 
 export AtmosModel, AtmosAcousticLinearModel, AtmosAcousticGravityLinearModel
-export RoeNumericalFlux
 
 using CLIMAParameters
 using CLIMAParameters.Planet: grav, cp_d
@@ -64,8 +63,7 @@ import ClimateMachine.DGMethods:
     lengthscale,
     resolutionmetric,
     DGModel,
-    nodal_update_auxiliary_state!,
-    nodal_init_state_auxiliary!
+    nodal_update_auxiliary_state!
 import ..DGMethods.NumericalFluxes:
     boundary_state!,
     boundary_flux_second_order!,
@@ -644,53 +642,24 @@ function reverse_integral_set_auxiliary_state!(
     reverse_integral_set_auxiliary_state!(m.radiation, aux, integ)
 end
 
-function atmos_nodal_init_state_auxiliary!(
-    m::AtmosModel,
-    aux::Vars,
-    tmp::Vars,
-    geom::LocalGeometry,
-)
-    aux.coord = geom.coord
-    init_aux_turbulence!(m.turbulence, m, aux, geom)
-    atmos_init_aux!(m.ref_state, m, aux, tmp, geom)
-    init_aux_hyperdiffusion!(m.hyperdiffusion, m, aux, geom)
-    atmos_init_aux!(m.tracers, m, aux, geom)
-    init_aux_turbconv!(m.turbconv, m, aux, geom)
-end
 
 @doc """
     init_state_auxiliary!(
         m::AtmosModel,
-        aux::MPIStateArray,
-        grid,
+        aux::Vars,
+        geom::LocalGeometry
         )
 Initialise auxiliary variables for each AtmosModel subcomponent.
 Store Cartesian coordinate information in `aux.coord`.
 """ init_state_auxiliary!
-function init_state_auxiliary!(
-    m::AtmosModel,
-    state_auxiliary::MPIStateArray,
-    grid,
-)
-    init_aux!(m, m.orientation, state_auxiliary, grid)
-
-    nodal_init_state_auxiliary!(
-        m,
-        (m, aux, tmp, geom) ->
-            atmos_init_ref_state_pressure!(m.ref_state, m, aux, geom),
-        state_auxiliary,
-        grid,
-    )
-
-    ∇p = ∇reference_pressure(m.ref_state, state_auxiliary, grid)
-
-    nodal_init_state_auxiliary!(
-        m,
-        atmos_nodal_init_state_auxiliary!,
-        state_auxiliary,
-        grid,
-        state_temporary = ∇p,
-    )
+function init_state_auxiliary!(m::AtmosModel, aux::Vars, geom::LocalGeometry)
+    aux.coord = geom.coord
+    init_aux!(m.orientation, m.param_set, aux)
+    init_aux_turbulence!(m.turbulence, m, aux, geom)
+    atmos_init_aux!(m.ref_state, m, aux, geom)
+    init_aux_hyperdiffusion!(m.hyperdiffusion, m, aux, geom)
+    atmos_init_aux!(m.tracers, m, aux, geom)
+    init_aux_turbconv!(m.turbconv, m, aux, geom)
 end
 
 @doc """
@@ -746,6 +715,10 @@ function init_state_prognostic!(
 end
 
 struct RoeNumericalFlux <: NumericalFluxFirstOrder end
+
+roe_average(ρ⁻, ρ⁺, var⁻, var⁺) =
+    (sqrt(ρ⁻) * var⁻ + sqrt(ρ⁺) * var⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
+
 function numerical_flux_first_order!(
     numerical_flux::RoeNumericalFlux,
     balance_law::AtmosModel,
@@ -774,87 +747,84 @@ function numerical_flux_first_order!(
 
     FT = eltype(fluxᵀn)
     param_set = balance_law.param_set
-    _e_int_v0::FT = e_int_v0(param_set)
+    _cv_d::FT = cv_d(param_set)
+    _T_0::FT = T_0(param_set)
+
+    Φ = gravitational_potential(balance_law, state_auxiliary⁻)
 
     ρ⁻ = state_conservative⁻.ρ
     ρu⁻ = state_conservative⁻.ρu
     ρe⁻ = state_conservative⁻.ρe
-    ρq_tot⁻ = state_conservative⁻.moisture.ρq_tot
-    ts⁻ = thermo_state(balance_law, balance_law.moisture, state_conservative⁻, state_auxiliary⁻)
-    T⁻ = air_temperature(ts⁻)
+    ts⁻ = thermo_state(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁻,
+        state_auxiliary⁻,
+    )
+
     u⁻ = ρu⁻ / ρ⁻
+    uᵀn⁻ = u⁻' * normal_vector
     e⁻ = ρe⁻ / ρ⁻
-    q_tot⁻ = ρq_tot⁻ / ρ⁻
     h⁻ = total_specific_enthalpy(ts⁻, e⁻)
+    p⁻ = pressure(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁻,
+        state_auxiliary⁻,
+    )
     c⁻ = soundspeed_air(ts⁻)
 
     ρ⁺ = state_conservative⁺.ρ
     ρu⁺ = state_conservative⁺.ρu
     ρe⁺ = state_conservative⁺.ρe
-    ρq_tot⁺ = state_conservative⁺.moisture.ρq_tot
-    ts⁺ = thermo_state(balance_law, balance_law.moisture, state_conservative⁺, state_auxiliary⁺)
-    T⁺ = air_temperature(ts⁺)
+    ts⁺ = thermo_state(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁺,
+        state_auxiliary⁺,
+    )
+
     u⁺ = ρu⁺ / ρ⁺
+    uᵀn⁺ = u⁺' * normal_vector
     e⁺ = ρe⁺ / ρ⁺
-    q_tot⁺ = ρq_tot⁺ / ρ⁺
     h⁺ = total_specific_enthalpy(ts⁺, e⁺)
+    p⁺ = pressure(
+        balance_law,
+        balance_law.moisture,
+        state_conservative⁺,
+        state_auxiliary⁺,
+    )
     c⁺ = soundspeed_air(ts⁺)
 
-    #TODO: write a function to compute roe average
-    u_roe = (sqrt(ρ⁻) * u⁻ + sqrt(ρ⁺) * u⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
-    e_roe = (sqrt(ρ⁻) * e⁻ + sqrt(ρ⁺) * e⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
-    T_roe = (sqrt(ρ⁻) * T⁻ + sqrt(ρ⁺) * T⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
-    h_roe = (sqrt(ρ⁻) * h⁻ + sqrt(ρ⁺) * h⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
-    q_tot_roe = (sqrt(ρ⁻) * q_tot⁻ + sqrt(ρ⁺) * q_tot⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
-    c2_roe = (sqrt(ρ⁻) * c⁻^2 + sqrt(ρ⁺) * c⁺^2) / (sqrt(ρ⁻) + sqrt(ρ⁺))
-    c_roe = sqrt(c2_roe)
+    ρ̃ = sqrt(ρ⁻ * ρ⁺)
+    ũ = roe_average(ρ⁻, ρ⁺, u⁻, u⁺)
+    h̃ = roe_average(ρ⁻, ρ⁺, h⁻, h⁺)
+    c̃ = sqrt(roe_average(ρ⁻, ρ⁺, c⁻^2, c⁺^2))
 
-    q_roe_pt = PhasePartition(q_tot_roe)
-    R_m_roe = gas_constant_air(param_set, q_roe_pt)
-    cp_m_roe = cp_m(param_set, q_roe_pt)
-    #c = soundspeed_air(param_set, T_roe, q_pt_roe)
-    #TODO: replace this by a rescaled speed of sound
-    c_res = c_roe
-
-    # chosen by fair dice roll
-    # guaranteed to be random
-    #ω = FT(π) / 3
-    #δ = FT(π) / 5
-    #random_unit_vector = SVector(sin(ω) * cos(δ), cos(ω) * cos(δ), sin(δ))
-
-    # tangent space basis
-    #τ1 = random_unit_vector × normal_vector
-    #τ2 = τ1 × normal_vector
-
-    uᵀn_roe = u_roe' * normal_vector
-    uc_roe⁺ = u_roe + c_res * normal_vector
-    uc_roe⁻ = u_roe - c_res * normal_vector
-    e_kin_pot_roe = h_roe - _e_int_v0 * q_tot_roe - (cp_m_roe / R_m_roe) * c_res^2
-    
-    Λ = SDiagonal(
-        abs(uᵀn_roe + c_res),
-        abs(uᵀn_roe - c_res),
-        abs(uᵀn_roe),
-        abs(uᵀn_roe),
-        abs(uᵀn_roe),
-        abs(uᵀn_roe),
-    )
-
-    M = hcat(
-        SVector(1, uc_roe⁺[1], uc_roe⁺[2], uc_roe⁺[3], h_roe + c_res * uᵀn_roe, q_tot_roe),
-        SVector(1, uc_roe⁻[1], uc_roe⁻[2], uc_roe⁻[3], h_roe - c_res * uᵀn_roe, q_tot_roe),
-        SVector(1, u_roe[1], 0, 0, e_kin_pot_roe, 0),
-	SVector(-u_roe[2], -u_roe[1] * u_roe[2], e_kin_pot_roe, 0, 0, 0),
-	SVector(-u_roe[3], -u_roe[1] * u_roe[3], 0, e_kin_pot_roe, 0, 0),
-	SVector(-_e_int_v0, -u_roe[1] * _e_int_v0, 0, 0, 0, e_kin_pot_roe),
-    )
+    ũᵀn = ũ' * normal_vector
+    ũc̃⁻ = ũ - c̃ * normal_vector
+    ũc̃⁺ = ũ + c̃ * normal_vector
 
     Δρ = ρ⁺ - ρ⁻
-    Δρu = ρu⁺ - ρu⁻
-    Δρe = ρe⁺ - ρe⁻
-    Δρq_tot = ρq_tot⁺ - ρq_tot⁻
-    Δstate = SVector(Δρ, Δρu[1], Δρu[2], Δρu[3], Δρe, Δρq_tot)
+    Δp = p⁺ - p⁻
+    Δu = u⁺ - u⁻
+    Δuᵀn = Δu' * normal_vector
 
-    parent(fluxᵀn) .-= M * Λ * (M \ Δstate) / 2
+    w1 = abs(ũᵀn - c̃) * (Δp - ρ̃ * c̃ * Δuᵀn) / (2 * c̃^2)
+    w2 = abs(ũᵀn + c̃) * (Δp + ρ̃ * c̃ * Δuᵀn) / (2 * c̃^2)
+    w3 = abs(ũᵀn) * (Δρ - Δp / c̃^2)
+    w4 = abs(ũᵀn) * ρ̃
+
+    fluxᵀn.ρ -= (w1 + w2 + w3) / 2
+    fluxᵀn.ρu -=
+        (w1 * ũc̃⁻ + w2 * ũc̃⁺ + w3 * ũ + w4 * (Δu - Δuᵀn * normal_vector)) /
+        2
+    fluxᵀn.ρe -=
+        (
+            w1 * (h̃ - c̃ * ũᵀn) +
+            w2 * (h̃ + c̃ * ũᵀn) +
+            w3 * (ũ' * ũ / 2 + Φ - _T_0 * _cv_d) +
+            w4 * (ũ' * Δu - ũᵀn * Δuᵀn)
+        ) / 2
 end
 end # module
