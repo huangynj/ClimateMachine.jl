@@ -1,6 +1,31 @@
 
 export BatchedGeneralizedMinimalResidual
 
+"""
+    BatchedGeneralizedMinimalResidual(
+        Q,
+        dofperbatch,
+        Nbatch;
+        M = min(20, length(Q)),
+        rtol = √eps(eltype(AT)),
+        atol = eps(eltype(AT)),
+        forward_reshape = size(Q),
+        forward_permute = Tuple(1:length(size(Q))),
+    )
+
+# BGMRES
+This is an object for solving batched linear systems using the GMRES algorithm.
+The constructor parameter `M` is the number of steps after which the algorithm
+is restarted (if it has not converged), `Q` is a reference state used only
+to allocate the solver internal state, `dofperbatch` is the size of each batched
+system (assumed to be the same throughout), `Nbatch` is the total number
+of independent linear systems, and `rtol` specifies the convergence
+criterion based on the relative residual norm (max across all batched systems).
+This object is intended to be passed to the [`linearsolve!`](@ref) command.
+
+This uses a batched-version of the restarted Generalized Minimal Residual method
+of Saad and Schultz (1986).
+"""
 mutable struct BatchedGeneralizedMinimalResidual{
     MP1,
     Nbatch,
@@ -120,7 +145,6 @@ end
         max_iteration = nothing,
     )
 
-# Description
 Specialized constructor for `BatchedGeneralizedMinimalResidual` struct, using
 a `DGModel` to infer state-information and determine appropriate reshaping
 and permutations.
@@ -135,8 +159,6 @@ and permutations.
 - `rtol`: (float) relative tolerance. `DEFAULT = sqrt(eps(eltype(Q)))`
 - `max_iteration` : (Int).    Maximal dimension of each (batched)
                               Krylov subspace. DEFAULT = nothing
-# Return
-instance of `BatchedGeneralizedMinimalResidual` struct
 """
 function BatchedGeneralizedMinimalResidual(
     dg::DGModel,
@@ -145,7 +167,6 @@ function BatchedGeneralizedMinimalResidual(
     rtol = sqrt(eps(eltype(Q))),
     max_iteration = nothing,
 )
-
     grid = dg.grid
     topology = grid.topology
     dim = dimensionality(grid)
@@ -213,17 +234,6 @@ function BatchedGeneralizedMinimalResidual(
     )
 end
 
-@inline function convert_structure!(x, y, reshape_tuple, permute_tuple)
-    alias_y = reshape(y, reshape_tuple)
-    permute_y = permutedims(alias_y, permute_tuple)
-    x[:] .= permute_y[:]
-    nothing
-end
-@inline convert_structure!(x, y::MPIStateArray, reshape_tuple, permute_tuple) =
-    convert_structure!(x, y.data, reshape_tuple, permute_tuple)
-@inline convert_structure!(x::MPIStateArray, y, reshape_tuple, permute_tuple) =
-    convert_structure!(x.data, y, reshape_tuple, permute_tuple)
-
 function initialize!(
     linearoperator!,
     Q,
@@ -232,7 +242,6 @@ function initialize!(
     args...;
     threshold = nothing,
 )
-
     g0 = solver.g0
     krylov_basis = solver.krylov_basis
     rtol, atol = solver.rtol, solver.atol
@@ -253,10 +262,11 @@ function initialize!(
     @assert size(Q) == size(krylov_basis)
 
     # FIXME: Can we make linearoperator! batch-able?
-    # store the initial residual in krylov_basis[1] = r0/|r0|
+    # store the initial (global) residual in krylov_basis = r0/|r0|
     linearoperator!(krylov_basis, Q, args...)
     krylov_basis .= Qrhs .- krylov_basis
 
+    # Convert into a batched Krylov basis vector
     convert_structure!(
         batched_krylov_basis[1],
         krylov_basis,
@@ -264,6 +274,8 @@ function initialize!(
         forward_permute,
     )
 
+    # Now we initialize across all columns (solver.batch_size).
+    # This function also computes the residual norm in each column
     event = Event(device)
     event = batched_initialize!(device, groupsize)(
         resnorms,
@@ -274,10 +286,13 @@ function initialize!(
     )
     wait(device, event)
 
+    # Current stopping criteria is based on the maximal column norm
     residual_norm = maximum(resnorms)
     converged = false
 
-    # when restarting, we do not want to overwrite the initial threshold
+    # When restarting, we do not want to overwrite the initial threshold,
+    # otherwise we may not get an accurate indication that we have sufficiently
+    # reduced the GMRES residual.
     if threshold === nothing
         threshold = rtol * residual_norm
         if threshold < atol
@@ -286,31 +301,13 @@ function initialize!(
     else
         # if restarting, then threshold has
         # already been computed and we simply check
-        # the norm
+        # the current residual norm
         if residual_norm < threshold
             converged = true
         end
     end
 
     converged, max(threshold, atol)
-end
-
-"""
-update batched_krylov_basis r0/|r0|
-update rhs g0 = βe1, where β = |r0|
-update resnorms = |r0|
-"""
-@kernel function batched_initialize!(resnorms, g0, batched_krylov_basis)
-
-    cidx = @index(Global)
-    FT = eltype(batched_krylov_basis)
-    fill!(g0[cidx], FT(0.0))
-    local_residual_norm = norm(batched_krylov_basis[:, cidx], false)
-    g0[cidx][1] = local_residual_norm
-    batched_krylov_basis[:, cidx] ./= local_residual_norm
-    resnorms[cidx] = local_residual_norm
-
-    nothing
 end
 
 function doiteration!(
@@ -321,7 +318,6 @@ function doiteration!(
     threshold,
     args...,
 )
-
     FT = eltype(Q)
     krylov_basis = solver.krylov_basis
     krylov_basis_prev = solver.krylov_basis_prev
@@ -344,16 +340,15 @@ function doiteration!(
         groupsize = 256
     end
 
+    # Main batched-GMRES iteration cycle
     converged = false
     residual_norm = typemax(FT)
     Ωs = ntuple(i -> LinearAlgebra.Rotation{FT}([]), solver.batch_size)
     j = 1
-    @info "Current threshold: $threshold"
     for outer j in 1:(solver.max_iter)
         # FIXME: To make this a truly batched method, we need to be able
-        # to make operator application batch-able.
-        # Global operator matvec
-
+        # to make operator application batch-able. That way, we don't have
+        # to do this back-and-forth reshaping
         convert_structure!(
             krylov_basis_prev,
             batched_krylov_basis[j],
@@ -361,17 +356,17 @@ function doiteration!(
             backward_permute,
         )
 
+        # Global operator application to get new Krylov basis vector
         linearoperator!(krylov_basis, krylov_basis_prev, args...)
 
         # Now that we have a global Krylov vector, we reshape and batch
-        # the Arnoldi iterations
+        # the Arnoldi iterations across all columns
         convert_structure!(
             batched_krylov_basis[j + 1],
             krylov_basis,
             forward_reshape,
             forward_permute,
         )
-
         event = Event(device)
         event = batched_arnoldi_process!(device, groupsize)(
             resnorms,
@@ -385,20 +380,21 @@ function doiteration!(
         )
         wait(device, event)
 
-        # Converge when all columns are converged
+        # Current stopping criteria is based on the maximal column norm
+        # TODO: Once we are able to batch the operator application, we
+        # should revisit the termination criteria.
         residual_norm = maximum(resnorms)
-        @info "Max residual at iteration $j: $residual_norm"
         if residual_norm < threshold
             converged = true
             break
         end
     end
 
-    # Reshape the solution vector
+    # Reshape the solution vector to construct the new GMRES iterate
     convert_structure!(sols, Q, forward_reshape, forward_permute)
 
-    # solve the triangular system and construct the
-    # gmres iterate in each column
+    # Solve the triangular system (minimization problem for optimal linear coefficients
+    # in the GMRES iterate) and construct the current iterate in each column
     event = Event(device)
     event = construct_batched_gmres_iterate!(device, groupsize)(
         batched_krylov_basis,
@@ -428,6 +424,23 @@ function doiteration!(
     (converged, j, residual_norm)
 end
 
+@kernel function batched_initialize!(resnorms, g0, batched_krylov_basis)
+    cidx = @index(Global)
+    FT = eltype(batched_krylov_basis)
+    fill!(g0[cidx], FT(0.0))
+
+    # Compute the column norm of the initial residual r0
+    local_residual_norm = norm(batched_krylov_basis[:, cidx], false)
+    # Set g0 = βe1, where β = |r0|
+    g0[cidx][1] = local_residual_norm
+    # Normalize the batched_krylov_basis by the (local) residual norm
+    batched_krylov_basis[:, cidx] ./= local_residual_norm
+    # Record initialize residual norm in the column
+    resnorms[cidx] = local_residual_norm
+
+    nothing
+end
+
 @kernel function batched_arnoldi_process!(
     resnorms,
     g0s,
@@ -436,13 +449,13 @@ end
     batched_krylov_basis,
     j,
 )
-
     cidx = @index(Global)
     g0 = g0s[cidx]
     H = Hs[cidx]
     Ω = Ωs[cidx]
 
-    for i in 1:j
+    # Arnoldi process in the local column `cidx`
+    @inbounds for i in 1:j
         H[i, j] = dot(
             batched_krylov_basis[j + 1][:, cidx],
             batched_krylov_basis[i][:, cidx],
@@ -479,16 +492,48 @@ end
     sols,
     j,
 )
-
+    # Solve for the GMRES coefficients (yⱼ) at the `j`-th
+    # iteration that minimizes ∥ b - A xⱼ ∥_2, where
+    # xⱼ = ∑ᵢ yᵢ Ψᵢ, with Ψᵢ denoting the Krylov basis vectors
     cidx = @index(Global)
     g0 = g0s[cidx]
     H = Hs[cidx]
     y = ys[cidx]
+    # TODO: Is this GPU-safe?
     y[1:j] .= UpperTriangular(H[1:j, 1:j]) \ g0[1:j]
 
-    for i in 1:j
+    # Having determined yᵢ, we now construct the GMRES solution
+    # in each column: xⱼ = ∑ᵢ yᵢ Ψᵢ
+    @inbounds for i in 1:j
         sols[:, cidx] .+= y[i] * batched_krylov_basis[i][:, cidx]
     end
 
     nothing
 end
+
+"""
+    convert_structure!(
+        x,
+        y,
+        reshape_tuple,
+        permute_tuple,
+    )
+
+Computes a tensor transpose and stores result in x
+
+# Arguments
+- `x`: (array) [OVERWRITTEN]. target destination for storing the y data
+- `y`: (array). data that we want to copy
+- `reshape_tuple`: (tuple) reshapes y to be like that of x, up to a permutation
+- `permute_tuple`: (tuple) permutes the reshaped array into the correct structure
+"""
+@inline function convert_structure!(x, y, reshape_tuple, permute_tuple)
+    alias_y = reshape(y, reshape_tuple)
+    permute_y = permutedims(alias_y, permute_tuple)
+    x[:] .= permute_y[:]
+    nothing
+end
+@inline convert_structure!(x, y::MPIStateArray, reshape_tuple, permute_tuple) =
+    convert_structure!(x, y.data, reshape_tuple, permute_tuple)
+@inline convert_structure!(x::MPIStateArray, y, reshape_tuple, permute_tuple) =
+    convert_structure!(x.data, y, reshape_tuple, permute_tuple)

@@ -123,8 +123,6 @@ function linearsolve!(
     while !converged && iters < max_iters
         converged, inner_iters, residual_norm =
             doiteration!(linearoperator!, Q, Qrhs, solver, threshold, args...)
-        @info "Inner iterations = $inner_iters, residual norm = $residual_norm"
-        @info "Converged = $converged"
 
         iters += inner_iters
 
@@ -137,7 +135,6 @@ function linearsolve!(
 
     converged || @warn "Solver did not attain convergence after $iters iterations"
     cvg[] = converged
-    @info "Total cumulative iterations: $iters"
     iters
 end
 
