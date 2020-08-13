@@ -28,7 +28,7 @@ function save_subdomain_temperature!(
         ρaq_tot_up = up[i].ρaq_tot
         θ_liq_up = ρaθ_liq_up / ρa_up
         q_tot_up = ρaq_tot_up / ρa_up
-        try
+        # try
             ts_up = LiquidIcePotTempSHumEquil_given_pressure(
                 m.param_set,
                 θ_liq_up,
@@ -36,27 +36,27 @@ function save_subdomain_temperature!(
                 q_tot_up,
             )
             aux.turbconv.updraft[i].T = air_temperature(ts_up)
-        catch
-            @print("************************************* sat adjust failed (updraft)\n")
-            @show i
-            @show altitude(m, aux)
-            @show ts_gm
-            @show ρa_up
-            @show ρa_up * ρinv
-            @show p, ρ
-            @show θ_liq_up
-            @show q_tot_up
-            @show liquid_ice_pottemp(ts_gm)
-            @show total_specific_humidity(ts_gm)
-            ts_up = LiquidIcePotTempSHumEquil_given_pressure(
-                m.param_set,
-                θ_liq_up,
-                p,
-                q_tot_up,
-            )
-        end
+        # catch
+        #     @print("************************************* sat adjust failed (updraft)\n")
+        #     @show i
+        #     @show altitude(m, aux)
+        #     @show ts_gm
+        #     @show ρa_up
+        #     @show ρa_up * ρinv
+        #     @show p, ρ
+        #     @show θ_liq_up
+        #     @show q_tot_up
+        #     @show liquid_ice_pottemp(ts_gm)
+        #     @show total_specific_humidity(ts_gm)
+        #     ts_up = LiquidIcePotTempSHumEquil_given_pressure(
+        #         m.param_set,
+        #         θ_liq_up,
+        #         p,
+        #         q_tot_up,
+        #     )
+        # end
     end
-    try
+    # try
         ts_en = LiquidIcePotTempSHumEquil_given_pressure(
             m.param_set,
             θ_liq_en,
@@ -64,31 +64,31 @@ function save_subdomain_temperature!(
             q_tot_en,
         )
         aux.turbconv.environment.T = air_temperature(ts_en)
-    catch
-        @print("************************************* sat adjust failed (env)\n")
-        ntuple(N_up) do i
-            @print i
-            @show θ_liq_en
-            @show θ_liq_gm
-            @show up[i].ρa
-            @show up[i].ρaw
-            @show up[i].ρaθ_liq
-            @show up[i].ρaq_tot
-        end
-        @show altitude(m, aux)
-        @show θ_liq_en
-        @show q_tot_en
-        @show ts_gm
-        @show p, ρ
-        @show liquid_ice_pottemp(ts_gm)
-        @show total_specific_humidity(ts_gm)
-        ts_en = LiquidIcePotTempSHumEquil_given_pressure(
-            m.param_set,
-            θ_liq_en,
-            p,
-            q_tot_en,
-        )
-    end
+    # catch
+    #     @print("************************************* sat adjust failed (env)\n")
+    #     ntuple(N_up) do i
+    #         @print i
+    #         @show θ_liq_en
+    #         @show θ_liq_gm
+    #         @show up[i].ρa
+    #         @show up[i].ρaw
+    #         @show up[i].ρaθ_liq
+    #         @show up[i].ρaq_tot
+    #     end
+    #     @show altitude(m, aux)
+    #     @show θ_liq_en
+    #     @show q_tot_en
+    #     @show ts_gm
+    #     @show p, ρ
+    #     @show liquid_ice_pottemp(ts_gm)
+    #     @show total_specific_humidity(ts_gm)
+    #     ts_en = LiquidIcePotTempSHumEquil_given_pressure(
+    #         m.param_set,
+    #         θ_liq_en,
+    #         p,
+    #         q_tot_en,
+    #     )
+    # end
     return nothing
 end
 
@@ -137,8 +137,8 @@ function thermo_state_en(
     ρinv = 1 / state.ρ
     ρaq_tot_en =
         total_specific_humidity(ts_gm) -
-        sum([up[i].ρaq_tot for i in 1:N_up]) * ρinv
-    a_en = 1 - sum([up[i].ρa for i in 1:N_up]) * ρinv
+        sum(ntuple(i->up[i].ρaq_tot ,N_up)) * ρinv
+    a_en = 1 - sum(ntuple(i->up[i].ρa, N_up)) * ρinv
     q_tot = ρaq_tot_en * ρinv / a_en
     ρ = air_density(param_set, T, p, PhasePartition(q_tot))
     q = PhasePartition_equil(param_set, T, ρ, q_tot, PhaseEquil)

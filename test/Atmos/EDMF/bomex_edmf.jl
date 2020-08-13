@@ -577,16 +577,16 @@ function main()
     output_dir = ClimateMachine.Settings.output_dir
     @show output_dir
     state_types = (Prognostic(), Auxiliary(), GradientFlux())
-    all_data = [dict_of_nodal_states(solver_config, ["z"], state_types)]
-    time_data = FT[0]
+    # all_data = [dict_of_nodal_states(solver_config, ["z"], state_types)]
+    # time_data = FT[0]
 
-    export_state_plots(
-        solver_config,
-        all_data,
-        time_data,
-        joinpath(clima_dir, "output", "ICs");
-        state_types = state_types,
-    )
+    # export_state_plots(
+    #     solver_config,
+    #     all_data,
+    #     time_data,
+    #     joinpath(clima_dir, "output", "ICs");
+    #     state_types = state_types,
+    # )
 
     # Define the number of outputs from `t0` to `timeend`
     n_outputs = 4
@@ -596,11 +596,11 @@ function main()
     cb_data_vs_time =
         GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
             # cb_data_vs_time = GenericCallbacks.EveryXSimulationSteps(1) do
-            push!(
-                all_data,
-                dict_of_nodal_states(solver_config, ["z"], state_types),
-            )
-            push!(time_data, gettime(solver_config.solver))
+            # push!(
+            #     all_data,
+            #     dict_of_nodal_states(solver_config, ["z"], state_types),
+            # )
+            # push!(time_data, gettime(solver_config.solver))
             @show gettime(solver_config.solver)
             @show getsteps(solver_config.solver)
             nothing
@@ -625,19 +625,19 @@ function main()
         check_euclidean_distance = true,
         # numberofsteps = 291
     )
-    push!(all_data, dict_of_nodal_states(solver_config, ["z"], state_types))
-    push!(time_data, gettime(solver_config.solver))
+    # push!(all_data, dict_of_nodal_states(solver_config, ["z"], state_types))
+    # push!(time_data, gettime(solver_config.solver))
 
-    export_state_plots(
-        solver_config,
-        all_data,
-        time_data,
-        joinpath(clima_dir, "output", "runtime");
-        state_types = state_types,
-    )
+    # export_state_plots(
+    #     solver_config,
+    #     all_data,
+    #     time_data,
+    #     joinpath(clima_dir, "output", "runtime");
+    #     state_types = state_types,
+    # )
 
     @test !isnan(norm(Q))
-    return solver_config, all_data, time_data
+    # return solver_config, all_data, time_data
 end
 
-solver_config, all_data, time_data = main()
+main()

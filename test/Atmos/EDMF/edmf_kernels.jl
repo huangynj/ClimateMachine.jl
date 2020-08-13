@@ -278,14 +278,19 @@ function vars_state(m::EDMF, st::GradientFlux, FT)
     )
 end
 
+@generated function unroll_map(f::F, ::Val{N}, args...) where {F,N}
+    quote
+        Base.@_inline_meta
+        Base.Cartesian.@nexprs $N i -> f(i, args...)
+    end
+end
+
 function init_aux_turbconv!(
-    turbconv::EDMF{FT},
+    turbconv::EDMF{FT, N_up},
     m::AtmosModel{FT},
     aux::Vars,
     geom::LocalGeometry,
-) where {FT}
-
-    N_up = n_updrafts(turbconv)
+) where {FT, N_up}
 
     # Aliases:
     en_a = aux.turbconv.environment
@@ -294,7 +299,9 @@ function init_aux_turbconv!(
     en_a.cld_frac = eps(FT)
     en_a.buoyancy = eps(FT)
 
-    ntuple(N_up) do i
+    unroll_map(Val(N_up)) do i
+    # @inbounds ntuple(Val(N_up)) do i
+    #     Base.@_inline_meta
         up_a[i].buoyancy = eps(FT)
         up_a[i].updraft_top = FT(500)
     end
