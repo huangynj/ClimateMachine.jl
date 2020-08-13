@@ -35,7 +35,7 @@ Base.@kwdef struct SurfaceModel{FT<:AbstractFloat}
     "top lantent heat flux ‵[w/m^2]‵"
     top_lhf::FT = 0.0
     "Sufcae area"
-    a_surf::FT = 0.01
+    a_surf::FT = 0.1
     "Sufcae tempearture"
     T_surf::FT = 300.0
     "Ratio of rms turbulent velocity to friction velocity"

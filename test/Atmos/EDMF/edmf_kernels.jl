@@ -197,6 +197,8 @@ function vars_state(::Updraft, ::Auxiliary, FT)
         ε_dyn::FT,
         δ_dyn::FT,
         ε_trb::FT,
+        ε_δ::FT,
+        dpdz::FT,
         T::FT,
         H::FT,
         H_integ::FT,
@@ -353,7 +355,7 @@ function init_state_prognostic!(
     q = PhasePartition(ts)
     θ_liq = liquid_ice_pottemp(ts)
 
-    a_up = turbconv.surface.a_surf/N_up
+    a_up = FT(0.001)
     for i in 1:N
         up[i].ρa = gm.ρ * a_up
         up[i].ρaw = gm.ρu[3] * a_up
@@ -464,9 +466,6 @@ function turbconv_nodal_update_auxiliary_state!(
         up_a[i].buoyancy -= b_gm
     end
     en_a.buoyancy -= b_gm
-    for i in 1:N_up
-        up_a[i].ε_dyn, up_a[i].δ_dyn, up_a[i].ε_trb = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
-    end
 end;
 
 enforce_unit_bounds(x::FT) where {FT} = clamp(x, FT(1e-3), FT(1-1e-3))
@@ -620,11 +619,14 @@ function turbconv_source!(
         ρa_i = enforce_unit_bounds(up[i].ρa)
 
         # first moment sources - for now we compute these as aux variable 
-        # ε_dyn[i] ,δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
-        ε_dyn[i] = up_a[i].ε_dyn
-        δ_dyn[i] = up_a[i].δ_dyn
-        ε_trb[i] = up_a[i].ε_trb
+        ε_dyn[i] ,δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+        up_a[i].ε_dyn = ε_dyn[i]
+        up_a[i].δ_dyn = δ_dyn[i]
+        up_a[i].ε_trb = ε_trb[i]
+        up_a[i].ε_δ = ε_dyn[i] - δ_dyn[i]
+
         dpdz, dpdz_tke_i  = perturbation_pressure(m, m.turbconv.pressure, state, diffusive, aux, t, direction, i)
+        up_a[i].dpdz = dpdz
 
         # entrainment and detrainment
         up_s[i].ρa      += up[i].ρaw * (ε_dyn[i] - δ_dyn[i])
@@ -700,7 +702,7 @@ function turbconv_source!(
         # pressure tke source from the i'th updraft
         en_s.ρatke += up[i].ρa * dpdz_tke_i
     end
-    l_mix    = mixing_length(m, m.turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
+    # l_mix    = mixing_length(m, m.turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
     l_mix = FT(500)
     K_eddy = m.turbconv.mix_len.c_m * l_mix * sqrt(tke_env)
     gm_d_∇u = diffusive.turbconv.∇u
@@ -784,7 +786,7 @@ function flux_second_order!(
         δ_dyn[i] = up_a[i].δ_dyn
         ε_trb[i] = up_a[i].ε_trb
     end
-    l_mix = mixing_length(m, turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
+    # l_mix = mixing_length(m, turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
     l_mix = FT(500)
     en_area = environment_area(state, aux, N)
     tke_env = enforce_positivity(en.ρatke)/en_area*ρinv
@@ -875,9 +877,10 @@ function turbconv_boundary_state!(
         upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf =
             compute_updraft_surface_BC(turbconv.surface, turbconv, m, gm, gm_a, t)
         for i in 1:N_up
-            upd_θ_liq_surf[i] = FT(298.8)
-            upd_q_tot_surf[i] = FT(0.01793)
-            up[i].ρa = FT(0.01173)
+            # use these value to override surface value if bad values appear
+            # upd_θ_liq_surf[i] = FT(298.8)
+            # upd_q_tot_surf[i] = FT(0.01793)
+            # up[i].ρa = FT(0.01173)
 
             up[i].ρaw = FT(0)
             # up[i].ρa = upd_a_surf[i] * gm.ρ

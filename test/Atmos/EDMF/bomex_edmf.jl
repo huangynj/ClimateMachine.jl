@@ -529,7 +529,7 @@ function main()
     # For a full-run, please set the timeend to 3600*6 seconds
     # For the test we set this to == 30 minutes
     # timeend = FT(13.805585)
-    timeend = FT(3600)
+    timeend = FT(400)
     #timeend = FT(3600 * 6)
     CFLmax = FT(0.90)
 
@@ -584,7 +584,7 @@ function main()
     export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "ICs"))
 
     # Define the number of outputs from `t0` to `timeend`
-    n_outputs = 8;
+    n_outputs = 4;
     # This equates to exports every ceil(Int, timeend/n_outputs) time-step:
     every_x_simulation_time = ceil(Int, timeend / n_outputs);
 
