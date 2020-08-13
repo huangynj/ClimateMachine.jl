@@ -26,6 +26,7 @@ import ...BalanceLaws:
     flux_second_order!,
     source!,
     wavespeed,
+    boundary_conditions,
     boundary_state!
 import ..Ocean: ocean_init_state!, ocean_init_aux!
 
@@ -299,48 +300,24 @@ end
 
 function shallow_boundary_state! end
 
-function boundary_state!(
-    nf,
-    m::SWModel,
-    q⁺::Vars,
-    a⁺::Vars,
-    n⁻,
-    q⁻::Vars,
-    a⁻::Vars,
-    bctype,
-    t,
-    _...,
-)
-    shallow_boundary_state!(nf, m, m.turbulence, q⁺, a⁺, n⁻, q⁻, a⁻, t)
-end
+boundary_conditions(shallow::SWModel) = shallow.problem.boundary_conditions
 
-function boundary_state!(
-    nf,
-    m::SWModel,
-    q⁺::Vars,
-    σ⁺::Vars,
-    α⁺::Vars,
-    n⁻,
-    q⁻::Vars,
-    σ⁻::Vars,
-    α⁻::Vars,
-    bctype,
-    t,
-    _...,
-)
-    shallow_boundary_state!(nf, m, m.turbulence, q⁺, σ⁺, α⁺, n⁻, q⁻, σ⁻, α⁻, t)
+function boundary_state!(nf, bc::OceanBC, m::SWModel, args...)
+    shallow_boundary_state!(nf, bc.velocity, m, m.turbulence, args...)
 end
 
 @inline function shallow_boundary_state!(
     ::NumericalFluxFirstOrder,
+    bc::Impenetrable{FreeSlip},
     m::SWModel,
-    ::LinearDrag,
+    ::TurbulenceClosure,
     q⁺,
     a⁺,
     n⁻,
     q⁻,
     a⁻,
     t,
+    args...,
 )
     q⁺.η = q⁻.η
 
@@ -352,29 +329,25 @@ end
 end
 
 shallow_boundary_state!(
-    ::NumericalFluxGradient,
+    ::Union{NumericalFluxGradient, NumericalFluxSecondOrder},
+    ::VelocityBC,
     m::SWModel,
-    ::LinearDrag,
-    _...,
-) = nothing
-
-shallow_boundary_state!(
-    ::NumericalFluxSecondOrder,
-    m::SWModel,
-    ::LinearDrag,
+    ::TurbulenceClosure,
     _...,
 ) = nothing
 
 @inline function shallow_boundary_state!(
     ::NumericalFluxFirstOrder,
+    bc::Impenetrable{NoSlip},
     m::SWModel,
-    ::ConstantViscosity,
+    ::TurbulenceClosure,
     q⁺,
     α⁺,
     n⁻,
     q⁻,
     α⁻,
     t,
+    args...,
 )
     q⁺.η = q⁻.η
     q⁺.U = -q⁻.U
@@ -384,6 +357,7 @@ end
 
 @inline function shallow_boundary_state!(
     ::NumericalFluxGradient,
+    bc::Impenetrable{NoSlip},
     m::SWModel,
     ::ConstantViscosity,
     q⁺,
@@ -392,6 +366,7 @@ end
     q⁻,
     α⁻,
     t,
+    args...,
 )
     FT = eltype(q⁺)
     q⁺.U = @SVector zeros(FT, 3)
@@ -401,6 +376,7 @@ end
 
 @inline function shallow_boundary_state!(
     ::NumericalFluxSecondOrder,
+    ::Impenetrable{NoSlip},
     m::SWModel,
     ::ConstantViscosity,
     q⁺,
@@ -411,6 +387,7 @@ end
     σ⁻,
     α⁻,
     t,
+    args...,
 )
     q⁺.U = -q⁻.U
     σ⁺.ν∇U = σ⁻.ν∇U

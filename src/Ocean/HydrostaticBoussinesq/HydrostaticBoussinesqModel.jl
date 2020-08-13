@@ -30,6 +30,7 @@ import ...BalanceLaws:
     flux_second_order!,
     source!,
     wavespeed,
+    boundary_conditions,
     boundary_state!,
     update_auxiliary_state!,
     update_auxiliary_state_gradient!,
@@ -694,8 +695,26 @@ function update_auxiliary_state_gradient!(
     return true
 end
 
+"""
+    boundary_conditions!(::HBModel)
+
+returns boundary conditions stored in the OceanProblem for the model
+"""
+boundary_conditions(ocean::HBModel) = ocean.problem.boundary_conditions
+
+"""
+    ocean_boundary_state!(nf, bc::OceanBC, ::HBModel)
+
+splits boundary condition application into velocity and temperature conditions
+"""
+function boundary_state!(nf, bc::OceanBC, ocean::HBModel, args...)
+    ocean_velocity_boundary_state!(nf, bc.velocity, ocean, args...)
+    ocean_temperature_boundary_state!(nf, bc.temperature, ocean, args...)
+end
+
+include("bc_velocity.jl")
+include("bc_temperature.jl")
 include("LinearHBModel.jl")
-include("BoundaryConditions.jl")
 include("Courant.jl")
 
 end
