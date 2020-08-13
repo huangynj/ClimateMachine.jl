@@ -112,7 +112,15 @@ function PhaseEquil(
     q_tot_safe = clamp(q_tot, FT(0), FT(1))
     local T
     try
-        T = sat_adjust(param_set, e_int, ρ, q_tot_safe, phase_type, maxiter, tol)
+        T = sat_adjust(
+            param_set,
+            e_int,
+            ρ,
+            q_tot_safe,
+            phase_type,
+            maxiter,
+            tol,
+        )
     catch
         @print("saturation_adjustment failed:\n")
         @print(
@@ -128,7 +136,15 @@ function PhaseEquil(
             tol.tol,
             "\n"
         )
-        T = sat_adjust(param_set, e_int, ρ, q_tot_safe, phase_type, maxiter, tol)
+        T = sat_adjust(
+            param_set,
+            e_int,
+            ρ,
+            q_tot_safe,
+            phase_type,
+            maxiter,
+            tol,
+        )
     end
     return PhaseEquil{FT, typeof(param_set)}(param_set, e_int, ρ, q_tot_safe, T)
 end

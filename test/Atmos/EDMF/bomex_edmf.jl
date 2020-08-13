@@ -50,7 +50,7 @@ eprint = {https://journals.ametsoc.org/doi/pdf/10.1175/1520-0469%282003%2960%3C1
 =#
 
 using ClimateMachine
-ClimateMachine.init(;parse_clargs = true, output_dir="output")
+ClimateMachine.init(; parse_clargs = true, output_dir = "output")
 
 using ClimateMachine.Atmos
 using ClimateMachine.TurbulenceClosures
@@ -68,11 +68,7 @@ using ClimateMachine.ODESolvers
 using ClimateMachine.Thermodynamics
 using ClimateMachine.VariableTemplates
 using ClimateMachine.BalanceLaws:
-    BalanceLaw,
-    Auxiliary,
-    Gradient,
-    GradientFlux,
-    Prognostic
+    BalanceLaw, Auxiliary, Gradient, GradientFlux, Prognostic
 
 using ClimateMachine.DGMethods: LocalGeometry, nodal_update_auxiliary_state!
 
@@ -450,13 +446,13 @@ function config_bomex(FT, N, nelem_vert, zmax)
             v_geostrophic,
         ),
         BomexGeostrophic{FT}(f_coriolis, u_geostrophic, u_slope, v_geostrophic),
-        turbconv_sources(turbconv)...
+        turbconv_sources(turbconv)...,
     )
 
     # Choose default IMEX solver
     ode_solver_type = ClimateMachine.ExplicitSolverType(
         solver_method = LSRK144NiegemannDiehlBusch,
-        )
+    )
 
     # Assemble model components
     model = AtmosModel{FT}(
@@ -550,12 +546,13 @@ function main()
     cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do
         Filters.apply!(
             solver_config.Q,
-            ("moisture.ρq_tot",
-             "turbconv.environment.ρatke",
-             "turbconv.environment.ρaθ_liq_cv",
-             "turbconv.environment.ρaq_tot_cv",
-             "turbconv.updraft",
-             ),
+            (
+                "moisture.ρq_tot",
+                "turbconv.environment.ρatke",
+                "turbconv.environment.ρaθ_liq_cv",
+                "turbconv.environment.ρaq_tot_cv",
+                "turbconv.updraft",
+            ),
             solver_config.dg.grid,
             TMARFilter(),
         )
@@ -583,21 +580,31 @@ function main()
     all_data = [dict_of_nodal_states(solver_config, ["z"], state_types)]
     time_data = FT[0]
 
-    export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "ICs"); state_types=state_types)
+    export_state_plots(
+        solver_config,
+        all_data,
+        time_data,
+        joinpath(clima_dir, "output", "ICs");
+        state_types = state_types,
+    )
 
     # Define the number of outputs from `t0` to `timeend`
-    n_outputs = 4;
+    n_outputs = 4
     # This equates to exports every ceil(Int, timeend/n_outputs) time-step:
-    every_x_simulation_time = ceil(Int, timeend / n_outputs);
+    every_x_simulation_time = ceil(Int, timeend / n_outputs)
 
-    cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
-    # cb_data_vs_time = GenericCallbacks.EveryXSimulationSteps(1) do
-        push!(all_data, dict_of_nodal_states(solver_config, ["z"], state_types))
-        push!(time_data, gettime(solver_config.solver))
-        @show gettime(solver_config.solver)
-        @show getsteps(solver_config.solver)
-        nothing
-    end;
+    cb_data_vs_time =
+        GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
+            # cb_data_vs_time = GenericCallbacks.EveryXSimulationSteps(1) do
+            push!(
+                all_data,
+                dict_of_nodal_states(solver_config, ["z"], state_types),
+            )
+            push!(time_data, gettime(solver_config.solver))
+            @show gettime(solver_config.solver)
+            @show getsteps(solver_config.solver)
+            nothing
+        end
     # --------------------------
 
     cb_check_cons = GenericCallbacks.EveryXSimulationSteps(3000) do
@@ -621,7 +628,13 @@ function main()
     push!(all_data, dict_of_nodal_states(solver_config, ["z"], state_types))
     push!(time_data, gettime(solver_config.solver))
 
-    export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "runtime"); state_types=state_types)
+    export_state_plots(
+        solver_config,
+        all_data,
+        time_data,
+        joinpath(clima_dir, "output", "runtime");
+        state_types = state_types,
+    )
 
     @test !isnan(norm(Q))
     return solver_config, all_data, time_data

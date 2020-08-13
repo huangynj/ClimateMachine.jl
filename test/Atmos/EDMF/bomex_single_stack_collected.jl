@@ -50,7 +50,7 @@ eprint = {https://journals.ametsoc.org/doi/pdf/10.1175/1520-0469%282003%2960%3C1
 =#
 
 using ClimateMachine
-ClimateMachine.init(;parse_clargs = true, output_dir="output")
+ClimateMachine.init(; parse_clargs = true, output_dir = "output")
 
 using ClimateMachine.Atmos
 using ClimateMachine.TurbulenceClosures
@@ -69,11 +69,7 @@ using ClimateMachine.SingleStackUtils
 using ClimateMachine.Thermodynamics
 using ClimateMachine.VariableTemplates
 using ClimateMachine.BalanceLaws:
-    BalanceLaw,
-    Auxiliary,
-    Gradient,
-    GradientFlux,
-    Prognostic
+    BalanceLaw, Auxiliary, Gradient, GradientFlux, Prognostic
 
 using ClimateMachine.DGMethods: LocalGeometry, nodal_update_auxiliary_state!
 
@@ -451,7 +447,7 @@ function config_bomex(FT, N, nelem_vert, zmax)
     # Choose default IMEX solver
     ode_solver_type = ClimateMachine.ExplicitSolverType(
         solver_method = LSRK144NiegemannDiehlBusch,
-        )
+    )
 
     # Assemble model components
     model = AtmosModel{FT}(
@@ -543,15 +539,16 @@ function main()
     time_data = FT[0]
 
     # Define the number of outputs from `t0` to `timeend`
-    n_outputs = 8;
+    n_outputs = 8
     # This equates to exports every ceil(Int, timeend/n_outputs) time-step:
-    every_x_simulation_time = ceil(Int, timeend / n_outputs);
+    every_x_simulation_time = ceil(Int, timeend / n_outputs)
 
-    cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
-        push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
-        push!(time_data, gettime(solver_config.solver))
-        nothing
-    end;
+    cb_data_vs_time =
+        GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
+            push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
+            push!(time_data, gettime(solver_config.solver))
+            nothing
+        end
 
     cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do
         Filters.apply!(
@@ -599,4 +596,9 @@ end
 
 solver_config, all_data, time_data = main()
 
-export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "runtime"))
+export_state_plots(
+    solver_config,
+    all_data,
+    time_data,
+    joinpath(clima_dir, "output", "runtime"),
+)

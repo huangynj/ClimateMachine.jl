@@ -1,5 +1,5 @@
 #### Mixing length model kernels
-include(joinpath("..","helper_funcs", "diagnose_environment.jl"))
+include(joinpath("..", "helper_funcs", "diagnose_environment.jl"))
 
 function mixing_length(
     m::AtmosModel{FT},
@@ -28,13 +28,13 @@ function mixing_length(
     ρinv = 1 / gm.ρ
 
     # precompute
-    en_area  = environment_area(state, aux, N_up)
-    w_env    = environment_w(state, aux, N_up)
+    en_area = environment_area(state, aux, N_up)
+    w_env = environment_w(state, aux, N_up)
 
     gm_d_∇u = diffusive.turbconv.∇u
     # TODO: check rank of `en_d.∇u`
-    Shear = gm_d_∇u[1,3]^2 + gm_d_∇u[2,3]^2 + en_d.∇w[3]^2 # consider scalar product of two vectors
-    tke = max(en.ρatke,0)*ρinv/en_area
+    Shear = gm_d_∇u[1, 3]^2 + gm_d_∇u[2, 3]^2 + en_d.∇w[3]^2 # consider scalar product of two vectors
+    tke = max(en.ρatke, 0) * ρinv / en_area
 
     # bflux     = Nishizawa2018.compute_buoyancy_flux(m.param_set, ml.shf, ml.lhf, ml.T_b, q, ρinv)
     bflux = FT(1)
@@ -59,24 +59,18 @@ function mixing_length(
     # compute L2 - law of the wall  - YAIR define tke_surf
     # tke_surf = FT(3.75)*ustar*ustar
     θ_liq_cv_surf, q_tot_cv_surf, θ_liq_q_tot_cv_surf, tke_surf =
-            env_surface_covariances(m.turbconv.surface, m.turbconv, m, gm, gm_a)
+        env_surface_covariances(m.turbconv.surface, m.turbconv, m, gm, gm_a)
     if obukhov_length < FT(0)
         L_2 =
-            (
-                ml.κ * z / (
-                    sqrt(tke_surf) / ustar / ustar
-                ) * ml.c_m
-            ) * min((FT(1) - FT(100) * z / obukhov_length)^FT(0.2), 1 / ml.κ)
+            (ml.κ * z / (sqrt(tke_surf) / ustar / ustar) * ml.c_m) *
+            min((FT(1) - FT(100) * z / obukhov_length)^FT(0.2), 1 / ml.κ)
     else
-        L_2 =
-            ml.κ * z / (
-                sqrt(tke_surf) / ustar / ustar
-            ) * ml.c_k
+        L_2 = ml.κ * z / (sqrt(tke_surf) / ustar / ustar) * ml.c_k
     end
 
     # compute L3 - entrainment detrainment sources
     # Production/destruction terms
-    a = ml.c_m * (Shear - ∂b∂z/Pr_z) * sqrt(tke)
+    a = ml.c_m * (Shear - ∂b∂z / Pr_z) * sqrt(tke)
     # Dissipation term
     b = FT(0)
     ntuple(N_up) do i
@@ -99,6 +93,6 @@ function mixing_length(
     end
     L_3 = l_entdet
 
-    l_mix = lamb_smooth_minimum(SVector(L_1,L_2,L_3))
+    l_mix = lamb_smooth_minimum(SVector(L_1, L_2, L_3))
     return l_mix
 end;

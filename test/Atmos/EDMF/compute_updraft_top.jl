@@ -29,7 +29,7 @@ function compute_updraft_top!(
     z_all = get_z(dg.grid)
     z_min = min(z_all...)
     for i_up in 1:N_up
-        aux[:,vim_a.turbconv.updraft[i_up].updraft_top, :] .= z_min
+        aux[:, vim_a.turbconv.updraft[i_up].updraft_top, :] .= z_min
     end
 
     for eh in 1:nhorzelem
@@ -43,13 +43,21 @@ function compute_updraft_top!(
                         # --------------- kernel
                         vars_a = Vars{vs_a}(aux[ijk, :, e])
                         vars_c = Vars{vs_c}(Q[ijk, :, e])
-                        ρinv = 1/vars_c.ρ
+                        ρinv = 1 / vars_c.ρ
                         z = altitude(m, vars_a)
                         for i_up in 1:N_up
                             up_i_ρa = vars_c.turbconv.updraft[i_up].ρa
-                            updraft_top = aux[ijk,vim_a.turbconv.updraft[i_up].updraft_top, e]
-                            if up_i_ρa*ρinv>0
-                                aux[ijk,vim_a.turbconv.updraft[i_up].updraft_top, e] = max(updraft_top, z)
+                            updraft_top = aux[
+                                ijk,
+                                vim_a.turbconv.updraft[i_up].updraft_top,
+                                e,
+                            ]
+                            if up_i_ρa * ρinv > 0
+                                aux[
+                                    ijk,
+                                    vim_a.turbconv.updraft[i_up].updraft_top,
+                                    e,
+                                ] = max(updraft_top, z)
                             end
                         end
                         # ---------------
@@ -60,7 +68,10 @@ function compute_updraft_top!(
         end
     end
     for i_up in 1:N_up
-        aux[:,vim_a.turbconv.updraft[i_up].updraft_top, :] .= max(aux[end,vim_a.turbconv.updraft[i_up].updraft_top, end], FT(500))
+        aux[:, vim_a.turbconv.updraft[i_up].updraft_top, :] .= max(
+            aux[end, vim_a.turbconv.updraft[i_up].updraft_top, end],
+            FT(500),
+        )
     end
 
 end

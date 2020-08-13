@@ -2,7 +2,7 @@
 
 #### Entrainment-Detrainment model
 
-Base.@kwdef struct EntrainmentDetrainment{FT<:AbstractFloat}
+Base.@kwdef struct EntrainmentDetrainment{FT <: AbstractFloat}
     "Entrainmnet TKE scale"
     c_λ::FT = 0.3
     "Entrainment factor"
@@ -19,7 +19,7 @@ Base.@kwdef struct EntrainmentDetrainment{FT<:AbstractFloat}
     χ::FT = 0.25
 end
 
-Base.@kwdef struct SurfaceModel{FT<:AbstractFloat, SV}
+Base.@kwdef struct SurfaceModel{FT <: AbstractFloat, SV}
     "Surface temperature ‵[k]‵"
     surface_T::FT = 300.4
     "Surface liquid water potential temperature ‵[k]‵"
@@ -49,18 +49,25 @@ end
 function SurfaceModel{FT}(N_up;) where {FT}
     a_surf::FT = 0.1
 
-    surface_scalar_coeff = SVector(
-        ntuple(i->percentile_bounds_mean_norm(1 - a_surf + (i-1) * FT(a_surf/N_up),
-                                   1 - a_surf + i     * FT(a_surf/N_up), 1000), N_up)
-        )
+    surface_scalar_coeff = SVector(ntuple(
+        i -> percentile_bounds_mean_norm(
+            1 - a_surf + (i - 1) * FT(a_surf / N_up),
+            1 - a_surf + i * FT(a_surf / N_up),
+            1000,
+        ),
+        N_up,
+    ))
     SV = typeof(surface_scalar_coeff)
-    return SurfaceModel{FT, SV}(;scalar_coeff = surface_scalar_coeff, a_surf=a_surf)
+    return SurfaceModel{FT, SV}(;
+        scalar_coeff = surface_scalar_coeff,
+        a_surf = a_surf,
+    )
 end
 
 
 
 
-Base.@kwdef struct PressureModel{FT<:AbstractFloat}
+Base.@kwdef struct PressureModel{FT <: AbstractFloat}
     "Pressure drag"
     α_d::FT = 10.0
     "Pressure advection"
@@ -69,7 +76,7 @@ Base.@kwdef struct PressureModel{FT<:AbstractFloat}
     α_b::FT = 0.12
 end
 
-Base.@kwdef struct MixingLengthModel{FT<:AbstractFloat}
+Base.@kwdef struct MixingLengthModel{FT <: AbstractFloat}
     "dissipation coefficient"
     c_d::FT = 0.22
     "Eddy Viscosity"
@@ -89,27 +96,28 @@ struct SubdomainMean <: AbstractStatisticalModel end
 struct GaussQuad <: AbstractStatisticalModel end
 struct LogNormalQuad <: AbstractStatisticalModel end
 
-Base.@kwdef struct MicrophysicsModel{FT<:AbstractFloat, SM}
+Base.@kwdef struct MicrophysicsModel{FT <: AbstractFloat, SM}
     "enviromental cloud fraction"
     cf_initial::FT
     "Subdomain statistical model"
     statistical_model::SM
 end
 
-function MicrophysicsModel(FT;
-        cf_initial = FT(0.0),
-        statistical_model = SubdomainMean(),
-    )
-    args =(cf_initial,statistical_model)
-    return MicrophysicsModel{FT,
-        typeof(statistical_model)}(args...)
+function MicrophysicsModel(
+    FT;
+    cf_initial = FT(0.0),
+    statistical_model = SubdomainMean(),
+)
+    args = (cf_initial, statistical_model)
+    return MicrophysicsModel{FT, typeof(statistical_model)}(args...)
 end
 
-Base.@kwdef struct Environment{FT<:AbstractFloat, N_quad} <: BalanceLaw end
+Base.@kwdef struct Environment{FT <: AbstractFloat, N_quad} <: BalanceLaw end
 
-Base.@kwdef struct Updraft{FT<:AbstractFloat} <: BalanceLaw end
+Base.@kwdef struct Updraft{FT <: AbstractFloat} <: BalanceLaw end
 
-Base.@kwdef struct EDMF{FT<:AbstractFloat, N, UP, EN, ED, P, S, MP, ML} <: TurbulenceConvectionModel
+Base.@kwdef struct EDMF{FT <: AbstractFloat, N, UP, EN, ED, P, S, MP, ML} <:
+                   TurbulenceConvectionModel
     "Updrafts"
     updraft::UP
     "Environment"
@@ -126,28 +134,32 @@ Base.@kwdef struct EDMF{FT<:AbstractFloat, N, UP, EN, ED, P, S, MP, ML} <: Turbu
     mix_len::ML
 end
 
-function EDMF(FT, N_up, N_quad;
+function EDMF(
+    FT,
+    N_up,
+    N_quad;
     updraft = ntuple(i -> Updraft{FT}(), N_up),
-    environment = Environment{FT,N_quad}(),
+    environment = Environment{FT, N_quad}(),
     entr_detr = EntrainmentDetrainment{FT}(),
     pressure = PressureModel{FT}(),
     surface = SurfaceModel{FT}(N_up),
     micro_phys = MicrophysicsModel(FT),
     mix_len = MixingLengthModel{FT}(),
+)
+    args = (
+        updraft,
+        environment,
+        entr_detr,
+        pressure,
+        surface,
+        micro_phys,
+        mix_len,
     )
-    args = (updraft,
-    environment,
-    entr_detr,
-    pressure,
-    surface,
-    micro_phys,
-    mix_len)
     return EDMF{FT, N_up, typeof.(args)...}(args...)
 end
 
 
-import ClimateMachine.TurbulenceConvection:
-    turbconv_sources
+import ClimateMachine.TurbulenceConvection: turbconv_sources
 
 n_updrafts(m::EDMF{FT, N_up}) where {FT, N_up} = N_up
 n_quad_points(m::Environment{FT, N_quad}) where {FT, N_quad} = N_quad

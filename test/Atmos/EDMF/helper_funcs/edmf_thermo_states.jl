@@ -1,6 +1,6 @@
 # Convenience wrapper
 save_subdomain_temperature!(m, state, aux) =
-    save_subdomain_temperature!(m,m.moisture,state,aux)
+    save_subdomain_temperature!(m, m.moisture, state, aux)
 
 using KernelAbstractions: @print
 
@@ -16,12 +16,12 @@ function save_subdomain_temperature!(
     up = state.turbconv.updraft
 
     ρ = state.ρ
-    ρinv = 1/state.ρ
+    ρinv = 1 / state.ρ
     θ_liq_gm = liquid_ice_pottemp(ts_gm)
-    a_en = 1 - sum(ntuple(j->up[j].ρa, N_up)) * ρinv
-    θ_liq_en = (θ_liq_gm - sum(ntuple(j->up[j].ρaθ_liq * ρinv, N_up)))/a_en
+    a_en = 1 - sum(ntuple(j -> up[j].ρa, N_up)) * ρinv
+    θ_liq_en = (θ_liq_gm - sum(ntuple(j -> up[j].ρaθ_liq * ρinv, N_up))) / a_en
     q_tot_gm = total_specific_humidity(ts_gm)
-    q_tot_en = (q_tot_gm - sum(ntuple(j->up[j].ρaq_tot * ρinv, N_up)))/a_en
+    q_tot_en = (q_tot_gm - sum(ntuple(j -> up[j].ρaq_tot * ρinv, N_up))) / a_en
     ntuple(N_up) do i
         ρa_up = up[i].ρa
         ρaθ_liq_up = up[i].ρaθ_liq
@@ -29,7 +29,12 @@ function save_subdomain_temperature!(
         θ_liq_up = ρaθ_liq_up / ρa_up
         q_tot_up = ρaq_tot_up / ρa_up
         try
-            ts_up = LiquidIcePotTempSHumEquil_given_pressure(m.param_set, θ_liq_up, p, q_tot_up)
+            ts_up = LiquidIcePotTempSHumEquil_given_pressure(
+                m.param_set,
+                θ_liq_up,
+                p,
+                q_tot_up,
+            )
             aux.turbconv.updraft[i].T = air_temperature(ts_up)
         catch
             @print("************************************* sat adjust failed (updraft)\n")
@@ -38,16 +43,26 @@ function save_subdomain_temperature!(
             @show ts_gm
             @show ρa_up
             @show ρa_up * ρinv
-            @show p,ρ
+            @show p, ρ
             @show θ_liq_up
             @show q_tot_up
             @show liquid_ice_pottemp(ts_gm)
             @show total_specific_humidity(ts_gm)
-            ts_up = LiquidIcePotTempSHumEquil_given_pressure(m.param_set, θ_liq_up, p, q_tot_up)
+            ts_up = LiquidIcePotTempSHumEquil_given_pressure(
+                m.param_set,
+                θ_liq_up,
+                p,
+                q_tot_up,
+            )
         end
     end
     try
-        ts_en = LiquidIcePotTempSHumEquil_given_pressure(m.param_set, θ_liq_en, p, q_tot_en)
+        ts_en = LiquidIcePotTempSHumEquil_given_pressure(
+            m.param_set,
+            θ_liq_en,
+            p,
+            q_tot_en,
+        )
         aux.turbconv.environment.T = air_temperature(ts_en)
     catch
         @print("************************************* sat adjust failed (env)\n")
@@ -64,25 +79,30 @@ function save_subdomain_temperature!(
         @show θ_liq_en
         @show q_tot_en
         @show ts_gm
-        @show p,ρ
+        @show p, ρ
         @show liquid_ice_pottemp(ts_gm)
         @show total_specific_humidity(ts_gm)
-        ts_en = LiquidIcePotTempSHumEquil_given_pressure(m.param_set, θ_liq_en, p, q_tot_en)
+        ts_en = LiquidIcePotTempSHumEquil_given_pressure(
+            m.param_set,
+            θ_liq_en,
+            p,
+            q_tot_en,
+        )
     end
     return nothing
 end
 
 # Convenience wrapper
 thermo_state_up(m, state, aux, i_up) =
-    thermo_state_up(m,m.moisture,state,aux,i_up)
+    thermo_state_up(m, m.moisture, state, aux, i_up)
 
 function thermo_state_up(
     m::AtmosModel,
     moist::EquilMoist,
     state::Vars,
     aux::Vars,
-    i_up::Int
-    )
+    i_up::Int,
+)
     FT = eltype(state)
     param_set = m.param_set
     up = state.turbconv.updraft
@@ -98,15 +118,14 @@ function thermo_state_up(
 end
 
 # Convenience wrapper
-thermo_state_en(m, state, aux) =
-    thermo_state_en(m, m.moisture, state, aux)
+thermo_state_en(m, state, aux) = thermo_state_en(m, m.moisture, state, aux)
 
 function thermo_state_en(
     m::AtmosModel,
     moist::EquilMoist,
     state::Vars,
     aux::Vars,
-    )
+)
     FT = eltype(state)
     param_set = m.param_set
     N_up = n_updrafts(m.turbconv)
@@ -115,9 +134,11 @@ function thermo_state_en(
     ts_gm = thermo_state(m, state, aux)
     p = air_pressure(ts_gm)
     T = aux.turbconv.environment.T
-    ρinv = 1/state.ρ
-    ρaq_tot_en = total_specific_humidity(ts_gm) - sum([up[i].ρaq_tot for i in 1:N_up])*ρinv
-    a_en = 1 - sum([up[i].ρa for i in 1:N_up])*ρinv
+    ρinv = 1 / state.ρ
+    ρaq_tot_en =
+        total_specific_humidity(ts_gm) -
+        sum([up[i].ρaq_tot for i in 1:N_up]) * ρinv
+    a_en = 1 - sum([up[i].ρa for i in 1:N_up]) * ρinv
     q_tot = ρaq_tot_en * ρinv / a_en
     ρ = air_density(param_set, T, p, PhasePartition(q_tot))
     q = PhasePartition_equil(param_set, T, ρ, q_tot, PhaseEquil)
