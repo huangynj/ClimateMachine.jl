@@ -34,7 +34,7 @@ function env_surface_covariances(
     aux::Vars,
 ) where {FT}
     turbconv = atmos.turbconv
-    N = n_updrafts(turbconv)
+
     # yair - I would like to call the surface functions from src/Atmos/Model/SurfaceFluxes.jl
     # bflux = Nishizawa2018.compute_buoyancy_flux(ss.param_set, m.shf, m.lhf, T_b, q, α_0) # missing def of m.shf, m.lhf, T_b, q, α_0
     # oblength = Nishizawa2018.monin_obukhov_len(ss.param_set, u, θ, bflux) # missing def of u, θ,
@@ -82,26 +82,27 @@ function compute_updraft_surface_BC(
     t
 ) where {FT}
     turbconv = atmos.turbconv
-    N = n_updrafts(turbconv)
+    N_up = n_updrafts(turbconv)
     gm = state
     en = state.turbconv.environment
     up = state.turbconv.updraft
     ρinv = 1 / gm.ρ
+    surface_scalar_coeff = turbconv.surface.scalar_coeff
 
     θ_liq_cv, q_tot_cv, θ_liq_q_tot_cv, tke =
         env_surface_covariances(m, turbconv, atmos, state, aux)
-    upd_a_surf = MArray{Tuple{N}, FT}(zeros(FT, N))
-    upd_θ_liq_surf = MArray{Tuple{N}, FT}(zeros(FT, N))
-    upd_q_tot_surf = MArray{Tuple{N}, FT}(zeros(FT, N))
-    for i in 1:N
-        surface_scalar_coeff = percentile_bounds_mean_norm(1 - m.a_surf + (i-1) * FT(m.a_surf/N),
-                                                           1 - m.a_surf + i     * FT(m.a_surf/N), 1000)
-        upd_a_surf[i] = FT(m.a_surf/N)
+    upd_a_surf = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
+    upd_θ_liq_surf = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
+    upd_q_tot_surf = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
+    ntuple(N_up) do i
+        # surface_scalar_coeff = percentile_bounds_mean_norm(1 - m.a_surf + (i-1) * FT(m.a_surf/N_up),
+        #                                                    1 - m.a_surf + i     * FT(m.a_surf/N_up), 1000)
+        upd_a_surf[i] = FT(m.a_surf/N_up)
         e_int = internal_energy(atmos, state, aux)
         ts = PhaseEquil(atmos.param_set, e_int, state.ρ, state.moisture.ρq_tot / state.ρ)
         gm_θ_liq = liquid_ice_pottemp(ts)
-        upd_θ_liq_surf[i] = (gm_θ_liq                + surface_scalar_coeff*sqrt(max(θ_liq_cv, 0)))
-        upd_q_tot_surf[i] = (gm.moisture.ρq_tot*ρinv + surface_scalar_coeff*sqrt(max(q_tot_cv, 0)))
+        upd_θ_liq_surf[i] = (gm_θ_liq                + surface_scalar_coeff[i]*sqrt(max(θ_liq_cv, 0)))
+        upd_q_tot_surf[i] = (gm.moisture.ρq_tot*ρinv + surface_scalar_coeff[i]*sqrt(max(q_tot_cv, 0)))
     end
     return upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf
 end;

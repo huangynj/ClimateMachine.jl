@@ -623,8 +623,6 @@ function main()
 
     export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "runtime"); state_types=state_types)
 
-    @show kernel_calls
-    # @test all(values(kernel_calls))
     @test !isnan(norm(Q))
     return solver_config, all_data, time_data
 end

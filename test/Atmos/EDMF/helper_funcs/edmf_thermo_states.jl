@@ -18,11 +18,11 @@ function save_subdomain_temperature!(
     ρ = state.ρ
     ρinv = 1/state.ρ
     θ_liq_gm = liquid_ice_pottemp(ts_gm)
-    a_en = 1 - sum([up[j].ρa for j in 1:N_up]) * ρinv
-    θ_liq_en = (θ_liq_gm - sum([up[j].ρaθ_liq * ρinv for j in 1:N_up]))/a_en
+    a_en = 1 - sum(ntuple(j->up[j].ρa, N_up)) * ρinv
+    θ_liq_en = (θ_liq_gm - sum(ntuple(j->up[j].ρaθ_liq * ρinv, N_up)))/a_en
     q_tot_gm = total_specific_humidity(ts_gm)
-    q_tot_en = (q_tot_gm - sum([up[j].ρaq_tot * ρinv for j in 1:N_up]))/a_en
-    for i in 1:N_up
+    q_tot_en = (q_tot_gm - sum(ntuple(j->up[j].ρaq_tot * ρinv, N_up)))/a_en
+    ntuple(N_up) do i
         ρa_up = up[i].ρa
         ρaθ_liq_up = up[i].ρaθ_liq
         ρaq_tot_up = up[i].ρaq_tot
@@ -51,7 +51,7 @@ function save_subdomain_temperature!(
         aux.turbconv.environment.T = air_temperature(ts_en)
     catch
         @print("************************************* sat adjust failed (env)\n")
-        for i in 1:N_up
+        ntuple(N_up) do i
             @print i
             @show θ_liq_en
             @show θ_liq_gm

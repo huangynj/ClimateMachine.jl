@@ -27,13 +27,13 @@ function compute_subdomain_statistics!(
     up = state.turbconv.updraft
 
     # YAIR need to compute the env values here or pass them from ml function
-    N_upd = n_updrafts(m.turbconv)
+    N_up = n_updrafts(m.turbconv)
     _grav::FT = grav(m.param_set)
     ts_en = thermo_state_en(m, state, aux)
     ts_gm = thermo_state(m, state, aux)
 
-    en_area  = environment_area(state, aux, N_upd)
-    en_w     = environment_w(state, aux, N_upd)
+    en_area  = environment_area(state, aux, N_up)
+    en_w     = environment_w(state, aux, N_up)
     en_θ_liq = liquid_ice_pottemp(ts_en)
     en_q_tot = total_specific_humidity(ts_en)
     gm_p = air_pressure(ts_gm)

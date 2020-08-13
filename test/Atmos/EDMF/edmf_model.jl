@@ -19,7 +19,7 @@ Base.@kwdef struct EntrainmentDetrainment{FT<:AbstractFloat}
     χ::FT = 0.25
 end
 
-Base.@kwdef struct SurfaceModel{FT<:AbstractFloat}
+Base.@kwdef struct SurfaceModel{FT<:AbstractFloat, SV}
     "Surface temperature ‵[k]‵"
     surface_T::FT = 300.4
     "Surface liquid water potential temperature ‵[k]‵"
@@ -35,15 +35,30 @@ Base.@kwdef struct SurfaceModel{FT<:AbstractFloat}
     "top lantent heat flux ‵[w/m^2]‵"
     top_lhf::FT = 0.0
     "Sufcae area"
-    a_surf::FT = 0.1
+    a_surf::FT
     "Sufcae tempearture"
     T_surf::FT = 300.0
     "Ratio of rms turbulent velocity to friction velocity"
     κ_star::FT = 1.94
     "fixed ustar" # YAIR - need to change this
     ustar::FT = 0.28
-
+    "Scalar coefficient"
+    scalar_coeff::SV = 0
 end
+
+function SurfaceModel{FT}(N_up;) where {FT}
+    a_surf::FT = 0.1
+
+    surface_scalar_coeff = SVector(
+        ntuple(i->percentile_bounds_mean_norm(1 - a_surf + (i-1) * FT(a_surf/N_up),
+                                   1 - a_surf + i     * FT(a_surf/N_up), 1000), N_up)
+        )
+    SV = typeof(surface_scalar_coeff)
+    return SurfaceModel{FT, SV}(;scalar_coeff = surface_scalar_coeff, a_surf=a_surf)
+end
+
+
+
 
 Base.@kwdef struct PressureModel{FT<:AbstractFloat}
     "Pressure drag"
@@ -111,12 +126,12 @@ Base.@kwdef struct EDMF{FT<:AbstractFloat, N, UP, EN, ED, P, S, MP, ML} <: Turbu
     mix_len::ML
 end
 
-function EDMF(FT, N, N_quad;
-    updraft = ntuple(i -> Updraft{FT}(), N),
+function EDMF(FT, N_up, N_quad;
+    updraft = ntuple(i -> Updraft{FT}(), N_up),
     environment = Environment{FT,N_quad}(),
     entr_detr = EntrainmentDetrainment{FT}(),
     pressure = PressureModel{FT}(),
-    surface = SurfaceModel{FT}(),
+    surface = SurfaceModel{FT}(N_up),
     micro_phys = MicrophysicsModel(FT),
     mix_len = MixingLengthModel{FT}(),
     )
@@ -127,14 +142,14 @@ function EDMF(FT, N, N_quad;
     surface,
     micro_phys,
     mix_len)
-    return EDMF{FT, N, typeof.(args)...}(args...)
+    return EDMF{FT, N_up, typeof.(args)...}(args...)
 end
 
 
 import ClimateMachine.TurbulenceConvection:
     turbconv_sources
 
-n_updrafts(m::EDMF{FT, N}) where {FT, N} = N
+n_updrafts(m::EDMF{FT, N_up}) where {FT, N_up} = N_up
 n_quad_points(m::Environment{FT, N_quad}) where {FT, N_quad} = N_quad
 turbconv_sources(m::EDMF) = (turbconv_source!,)
 

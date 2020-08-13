@@ -7,7 +7,7 @@ function nondimensional_exchange_functions(
     aux::Vars,
     t::Real,
     i::Int,
-) where {FT, N}
+) where {FT}
 
     # Alias convention:
     gm = state
@@ -18,12 +18,12 @@ function nondimensional_exchange_functions(
     en_a = aux.turbconv.environment
 
     # precompute vars=
-    N_upd = n_updrafts(m.turbconv)
+    N_up = n_updrafts(m.turbconv)
     ρinv = 1 / gm.ρ
     up_area = up[i].ρa * ρinv
     w_up = up[i].ρaw / up[i].ρa
-    a_en = environment_area(state, aux, N_upd)
-    w_en = environment_w(state, aux, N_upd)
+    a_en = environment_area(state, aux, N_up)
+    w_en = environment_w(state, aux, N_up)
     # thermodynamic variables
     ts = thermo_state(m, state, aux)
     ts_up = thermo_state_up(m, state, aux, i)
@@ -31,7 +31,7 @@ function nondimensional_exchange_functions(
     ts_en = thermo_state_en(m, state, aux)
     RH_en = relative_humidity(ts_en)
 
-    Δw = max(w_up - w_en, 1e-4)
+    Δw = max(w_up - w_en, FT(1e-4))
     Δb = up_a[i].buoyancy - en_a.buoyancy
 
     if saturated(ts_up) || saturated(ts_en)

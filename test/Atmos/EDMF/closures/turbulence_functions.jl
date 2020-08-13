@@ -7,7 +7,7 @@ function compute_buoyancy_gradients(
     diffusive::Vars,
     aux::Vars,
     t::Real,
-) where {FT, N}
+) where {FT}
     # think how to call subdomain statistics here to get cloudy and dry values of T if you nee them
     # buoyancy gradients via chain-role
     # Alias convention:
@@ -17,7 +17,7 @@ function compute_buoyancy_gradients(
     en_d = diffusive.turbconv.environment
     gm_d = diffusive
     gm_a = aux
-    N_upd = n_updrafts(m.turbconv)
+    N_up = n_updrafts(m.turbconv)
 
     _grav::FT = grav(m.param_set)
     _R_d::FT = R_d(m.param_set)

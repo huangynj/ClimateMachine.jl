@@ -18,7 +18,7 @@ function entr_detr(
     en_a = aux.turbconv.environment
     up_a = aux.turbconv.updraft
 
-    N_upd = n_updrafts(m.turbconv)
+    N_up = n_updrafts(m.turbconv)
     ρinv = 1 / gm.ρ
     up_area = up[i].ρa / gm.ρ
     z = altitude(m, aux)
@@ -26,8 +26,8 @@ function entr_detr(
     sqrt_ϵ = sqrt(eps(FT))
     w_min = FT(0.1)
     # precompute vars
-    a_en = environment_area(state, aux, N_upd)
-    w_en = environment_w(state, aux, N_upd)
+    a_en = environment_area(state, aux, N_up)
+    w_en = environment_w(state, aux, N_up)
     w_up = up[i].ρaw / up[i].ρa
     sqrt_tke = sqrt(max(en.ρatke,0) * ρinv / a_en)
     Δw = max(abs(w_up - w_en), w_min)
@@ -59,14 +59,14 @@ function entr_detr(
     ε_dyn = min(max(ε_dyn,FT(0)), FT(0.1))
     δ_dyn = min(max(δ_dyn,FT(0)), FT(0.1))
     ε_trb = min(max(ε_trb,FT(0)), FT(0.1))
-    
+
 
     return ε_dyn ,δ_dyn, ε_trb
 end;
 
 ε_limiter(a_up::FT, ϵ::FT)   where {FT} = 1+10*(1-1/(1+exp(-FT(0.1)*a_up/ϵ)))
 δ_limiter(a_up::FT, ϵ::FT)   where {FT} = 1+10*(1-1/(1+exp(-FT(0.1)*(1-a_up)/ϵ)))
-εt_limiter(w_up::FT, ϵ::FT)  where {FT} = 1+10*(1-1/(1+exp(-FT(0.2)*w_up/ϵ))) 
+εt_limiter(w_up::FT, ϵ::FT)  where {FT} = 1+10*(1-1/(1+exp(-FT(0.2)*w_up/ϵ)))
 
 # ε_limiter(a_up::FT, ϵ::FT) where {FT} = 1
 # δ_limiter(a_up::FT, ϵ::FT) where {FT} = 1

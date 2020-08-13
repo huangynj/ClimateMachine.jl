@@ -113,23 +113,6 @@
 
 #### EDMF model kernels
 
-# For debugging
-debug_kernels = true
-kernel_calls = Dict([
-    :init_state_prognostic! => false,
-    :init_aux_turbconv! => false,
-    :turbconv_nodal_update_auxiliary_state! => false,
-    :flux_first_order! => false,
-    :flux_second_order! => false,
-    :turbconv_boundary_state! => false,
-    :turbconv_normal_boundary_flux_second_order! => false,
-    :compute_gradient_flux! => false,
-    :integral_load_auxiliary_state! => false,
-    :integral_set_auxiliary_state! => false,
-    :update_auxiliary_state! => false,
-    :copy_stack_down! => false,
-])
-
 using Printf
 using ClimateMachine.Atmos:
     integral_load_auxiliary_state!,
@@ -302,14 +285,15 @@ function vars_state(m::EDMF, st::GradientFlux, FT)
         updraft::vars_state(m.updraft, st, FT)
     )
 end
-using KernelAbstractions.Extras: @unroll
+
 function init_aux_turbconv!(
-    turbconv::EDMF{FT, N},
+    turbconv::EDMF{FT},
     m::AtmosModel{FT},
     aux::Vars,
     geom::LocalGeometry,
-) where {FT, N}
-    # kernel_calls[:init_aux_turbconv!] = true
+) where {FT}
+
+    N_up = n_updrafts(turbconv)
 
     # Aliases:
     en_a = aux.turbconv.environment
@@ -317,7 +301,8 @@ function init_aux_turbconv!(
 
     en_a.cld_frac = eps(FT)
     en_a.buoyancy = eps(FT)
-    for i in 1:N
+
+    ntuple(N_up) do i
         up_a[i].buoyancy = eps(FT)
         up_a[i].updraft_top = FT(500)
     end
@@ -325,14 +310,13 @@ end;
 
 # - this method is only called at `t=0`
 function init_state_prognostic!(
-    turbconv::EDMF{FT, N},
+    turbconv::EDMF{FT},
     m::AtmosModel{FT},
     state::Vars,
     aux::Vars,
     coords,
     t::Real,
-) where {FT, N}
-    # kernel_calls[:init_state_prognostic!] = true
+) where {FT}
 
     # # Aliases:
     gm = state
@@ -355,7 +339,7 @@ function init_state_prognostic!(
     θ_liq = liquid_ice_pottemp(ts)
 
     a_up = FT(0.001)
-    for i in 1:N
+    ntuple(N_up) do i
         up[i].ρa = gm.ρ * a_up
         up[i].ρaw = gm.ρu[3] * a_up
         up[i].ρaθ_liq = gm.ρ * a_up * θ_liq
@@ -383,7 +367,6 @@ function update_auxiliary_state!(
     t::Real,
     elems::UnitRange,
 )
-    # kernel_calls[:update_auxiliary_state!] = true
     FT = eltype(Q)
     state_auxiliary = dg.state_auxiliary
 
@@ -424,7 +407,6 @@ function turbconv_nodal_update_auxiliary_state!(
     aux::Vars,
     t::Real,
 ) where {FT}
-    # kernel_calls[:turbconv_nodal_update_auxiliary_state!] = true
 
     N_up = n_updrafts(turbconv)
     save_subdomain_temperature!(m, state, aux)
@@ -442,7 +424,7 @@ function turbconv_nodal_update_auxiliary_state!(
     _grav::FT = grav(m.param_set)
 
     z = altitude(m, aux)
-    for i in 1:N_up
+    ntuple(N_up) do i
         # w_i = state.turbconv.updraft[i].ρaw / state.turbconv.updraft[i].ρa
         ρaw_i = max(state.turbconv.updraft[i].ρaw,0)
         aux.turbconv.updraft[i].H_integ = max(0, z^10 * ρaw_i)
@@ -452,7 +434,7 @@ function turbconv_nodal_update_auxiliary_state!(
     en_ρ = air_density(ts)
     en_a.buoyancy = -_grav * (en_ρ - aux.ref_state.ρ) * ρinv
 
-    for i in 1:N_up
+    ntuple(N_up) do i
         ts = thermo_state_up(m, state, aux, i)
         ρ_i = air_density(ts)
         up_a[i].buoyancy = -_grav * (ρ_i - aux.ref_state.ρ) * ρinv
@@ -461,16 +443,17 @@ function turbconv_nodal_update_auxiliary_state!(
     b_gm = grid_mean_b(state,aux,N_up)
 
     # remove the gm_b from all subdomains
-    for i in 1:N_up
+    ntuple(N_up) do i
         up_a[i].buoyancy -= b_gm
     end
     en_a.buoyancy -= b_gm
-    for i in 1:N_up
+
+    ntuple(N_up) do i
         ε_dyn, δ_dyn, ε_trb = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
         up_a[i].ε_dyn = ε_dyn
         up_a[i].δ_dyn = δ_dyn
         up_a[i].ε_trb = ε_trb
-    end 
+    end
 
 end;
 
@@ -482,14 +465,14 @@ enforce_positivity(x::FT) where {FT} = max(x, FT(0))
 #  - `transform.ρcT` is available here because we've specified `ρcT` in
 #  `vars_state_gradient`
 function compute_gradient_argument!(
-    turbconv::EDMF{FT, N},
+    turbconv::EDMF{FT},
     m::AtmosModel{FT},
     transform::Vars,
     state::Vars,
     aux::Vars,
     t::Real,
-) where {FT, N}
-    # kernel_calls[:compute_gradient_argument!] = true
+) where {FT}
+    N_up = n_updrafts(turbconv)
     z = altitude(m, aux)
 
     # Aliases:
@@ -499,15 +482,15 @@ function compute_gradient_argument!(
     up = state.turbconv.updraft
     en = state.turbconv.environment
 
-    for i in 1:N
+    ntuple(N_up) do i
         up_t[i].w = up[i].ρaw / up[i].ρa
     end
     _grav::FT = grav(m.param_set)
     ts = thermo_state(m, state, aux)
 
     ρinv = 1 / gm.ρ
-    en_area  = environment_area(state,aux,N)
-    en_w     = environment_w(state, aux, N)
+    en_area  = environment_area(state,aux,N_up)
+    en_w     = environment_w(state, aux, N_up)
     ts_en = thermo_state_en(m, state, aux)
     en_θ_liq = liquid_ice_pottemp(ts_en)
     en_q_tot = total_specific_humidity(ts_en)
@@ -534,15 +517,15 @@ end;
 
 # Specify where in `diffusive::Vars` to store the computed gradient from
 function compute_gradient_flux!(
-    turbconv::EDMF{FT, N},
+    turbconv::EDMF{FT},
     m::AtmosModel{FT},
     diffusive::Vars,
     ∇transform::Grad,
     state::Vars,
     aux::Vars,
     t::Real,
-) where {FT, N}
-    # kernel_calls[:compute_gradient_flux!] = true
+) where {FT}
+    N_up = n_updrafts(turbconv)
 
     # # Aliases:
     gm = state
@@ -553,7 +536,8 @@ function compute_gradient_flux!(
     en_d = diffusive.turbconv.environment
     en_∇t = ∇transform.turbconv.environment
     tc_∇t = ∇transform.turbconv
-    for i in 1:N
+
+    ntuple(N_up) do i
         up_d[i].∇w = up_∇t[i].w
     end
 
@@ -586,10 +570,10 @@ function turbconv_source!(
     t::Real,
     direction,
 ) where {FT}
-    # kernel_calls[:turbconv_source!] = true
 
-    # turbconv = m.turbconv
-    N = n_updrafts(m.turbconv)
+    turbconv = m.turbconv
+    N_up = n_updrafts(turbconv)
+
     # Aliases:
     gm = state
     en = state.turbconv.environment
@@ -603,15 +587,15 @@ function turbconv_source!(
 
     # grid mean sources - I think that large scale subsidence in
     #            doubly periodic domains should be applied here
-    ε_trb = MArray{Tuple{N}, FT}(zeros(FT, N))
-    ε_dyn = MArray{Tuple{N}, FT}(zeros(FT, N))
-    δ_dyn = MArray{Tuple{N}, FT}(zeros(FT, N))
+    ε_trb = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
+    ε_dyn = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
+    δ_dyn = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
 
     # # get environment values for e, q_tot , u[3]
     _grav::FT = grav(m.param_set)
     ρinv = 1 / gm.ρ
-    en_a = environment_area(state, aux, N)
-    en_w = environment_w(state, aux, N)
+    en_a = environment_area(state, aux, N_up)
+    en_w = environment_w(state, aux, N_up)
     ts_en = thermo_state_en(m, state, aux)
     en_θ_liq = liquid_ice_pottemp(ts_en)
     en_q_tot = total_specific_humidity(ts_en)
@@ -619,14 +603,14 @@ function turbconv_source!(
     ts = thermo_state(m, state, aux)
     gm_θ_liq = liquid_ice_pottemp(ts)
 
-    for i in 1:N
+    ntuple(N_up) do i
         # upd vars
         w_i = up[i].ρaw / up[i].ρa
         ρa_i = enforce_unit_bounds(up[i].ρa)
 
-        # first moment sources - for now we compute these as aux variable 
+        # first moment sources - for now we compute these as aux variable
         ε_dyn[i] ,δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
-        dpdz, dpdz_tke_i  = perturbation_pressure(m, m.turbconv.pressure, state, diffusive, aux, t, direction, i)
+        dpdz, dpdz_tke_i  = perturbation_pressure(m, m.turbconv.pressure, state, diffusive, aux, t, i)
 
         # entrainment and detrainment
         up_s[i].ρa      += up[i].ρaw * (ε_dyn[i] - δ_dyn[i])
@@ -723,25 +707,25 @@ end;
 
 # # in the EDMF first order (advective) fluxes exist only in the grid mean (if <w> is nonzero) and the uprdafts
 function flux_first_order!(
-    turbconv::EDMF{FT, N},
+    turbconv::EDMF{FT},
     m::AtmosModel{FT},
     flux::Grad,
     state::Vars,
     aux::Vars,
     t::Real,
-) where {FT, N}
-    # kernel_calls[:flux_first_order!] = true
+) where {FT}
 
     # # Aliases:
     gm = state
     up = state.turbconv.updraft
     up_f = flux.turbconv.updraft
+    N_up = n_updrafts(turbconv)
 
     # positive sign here as we have a '-' sign in BL form leading to - ∂ρwϕ/∂z on the RHS
     # updrafts
     # in GCM implementation we need to think about grid mean advection
     ρinv = 1 / gm.ρ
-    for i in 1:N
+    ntuple(N_up) do i
         ρa_i = enforce_unit_bounds(up[i].ρa)
         up_f[i].ρa = up[i].ρaw
         w = up[i].ρaw / ρa_i
@@ -753,15 +737,15 @@ end;
 
 # in the EDMF second order (diffusive) fluxes exist only in the grid mean and the environment
 function flux_second_order!(
-    turbconv::EDMF{FT, N},
+    turbconv::EDMF{FT},
     m::AtmosModel{FT},
     flux::Grad,
     state::Vars,
     diffusive::Vars,
     aux::Vars,
     t::Real,
-) where {FT, N}
-    # kernel_calls[:flux_second_order!] = true
+) where {FT}
+    N_up = n_updrafts(turbconv)
 
     # Aliases:
     gm = state
@@ -776,11 +760,12 @@ function flux_second_order!(
     _grav::FT = grav(m.param_set)
     z = altitude(m, aux)
 
-    ε_dyn = MArray{Tuple{N}, FT}(zeros(FT, N))
-    δ_dyn = MArray{Tuple{N}, FT}(zeros(FT, N))
-    ε_trb = MArray{Tuple{N}, FT}(zeros(FT, N))
-    for i in 1:N
-        # for now we compute these as aux variable 
+    ε_dyn = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
+    δ_dyn = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
+    ε_trb = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
+
+    ntuple(N_up) do i
+        # for now we compute these as aux variable
         # ε_dyn[i], δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
         ε_dyn[i] = up_a[i].ε_dyn
         δ_dyn[i] = up_a[i].δ_dyn
@@ -788,7 +773,7 @@ function flux_second_order!(
     end
     # l_mix = mixing_length(m, turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
     l_mix = FT(500)
-    en_area = environment_area(state, aux, N)
+    en_area = environment_area(state, aux, N_up)
     tke_env = enforce_positivity(en.ρatke)/en_area*ρinv
     K_eddy = m.turbconv.mix_len.c_m * l_mix * sqrt(tke_env)
 
@@ -800,7 +785,8 @@ function flux_second_order!(
     e_int = internal_energy(m, state, aux)
     ts = thermo_state(m, state, aux)
     gm_p  = air_pressure(ts)
-    for i in 1:N
+
+    ntuple(N_up) do i
         ts = thermo_state_up(m, state, aux, i)
         e_kin = FT(1 // 2) * ((gm.ρu[1]*ρinv)^2 + (gm.ρu[2]*ρinv)^2 + (up[i].ρaw/up[i].ρa)^2)
         up_e = total_energy(e_kin, _grav * z, ts)
@@ -810,18 +796,18 @@ function flux_second_order!(
             (gm.ρu[3] * ρinv - up[i].ρaw / ρa_i)
     end
 
-    massflux_q_tot = sum([
+    massflux_q_tot = sum(ntuple(i->
         up[i].ρa *
         ρinv *
         (gm.moisture.ρq_tot * ρinv - up[i].ρaq_tot / up[i].ρa) *
-        (gm.ρu[3] * ρinv - up[i].ρaw / enforce_unit_bounds(up[i].ρa)) for i in 1:N
-    ])
-    massflux_w = sum([
+        (gm.ρu[3] * ρinv - up[i].ρaw / enforce_unit_bounds(up[i].ρa)), N_up))
+
+    massflux_w = sum(ntuple(i->
         up[i].ρa *
         ρinv *
         (gm.ρu[3] * ρinv - up[i].ρaw / up[i].ρa) *
-        (gm.ρu[3] * ρinv - up[i].ρaw / enforce_unit_bounds(up[i].ρa)) for i in 1:N
-    ])
+        (gm.ρu[3] * ρinv - up[i].ρaw / enforce_unit_bounds(up[i].ρa)), N_up
+    ))
 
     # # update grid mean flux_second_order
     ρe_sgs_flux     = - gm.ρ*en_area * K_eddy * en_d.∇e[3]     + massflux_e
@@ -864,7 +850,6 @@ function turbconv_boundary_state!(
     t,
     _...,
 ) where {FT}
-    # kernel_calls[:turbconv_boundary_state!] = true
 
     turbconv = m.turbconv
     N_up = n_updrafts(turbconv)
@@ -876,7 +861,8 @@ function turbconv_boundary_state!(
         # YAIR - which 'state' should I use here , state⁺ or state⁻  for computation of surface processes
         upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf =
             compute_updraft_surface_BC(turbconv.surface, turbconv, m, gm, gm_a, t)
-        for i in 1:N_up
+
+        ntuple(N_up) do i
             # use these value to override surface value if bad values appear
             # upd_θ_liq_surf[i] = FT(298.8)
             # upd_q_tot_surf[i] = FT(0.01793)
@@ -901,7 +887,8 @@ function turbconv_boundary_state!(
 
     elseif bctype == 2 # top
         ρinv = 1 / gm.ρ
-        for i in 1:N_up
+
+        ntuple(N_up) do i
             up[i].ρaw = FT(0)
             up[i].ρa = FT(0)
             up[i].ρaθ_liq = FT(0)
@@ -934,7 +921,6 @@ function turbconv_normal_boundary_flux_second_order!(
     t,
     _...,
 ) where {FT}
-    # kernel_calls[:turbconv_normal_boundary_flux_second_order!] = true
 
     turbconv = m.turbconv
     N = n_updrafts(turbconv)
@@ -973,10 +959,10 @@ function integral_load_auxiliary_state!(
     state::Vars,
     aux::Vars,
 )
-    # kernel_calls[:integral_load_auxiliary_state!] = true
     z = altitude(bl, aux)
     N_up = n_updrafts(turbconv)
-    for i in 1:N_up
+
+    ntuple(N_up) do i
         # w_i = state.turbconv.updraft[i].ρaw / state.turbconv.updraft[i].ρa
         ρaw_i = max(state.turbconv.updraft[i].ρaw,0)
         integ.turbconv.updraft[i].H = max(0, z^10 * ρaw_i)
@@ -1001,10 +987,10 @@ function integral_set_auxiliary_state!(
     aux::Vars,
     integ::Vars,
 )
-    # kernel_calls[:integral_set_auxiliary_state!] = true
     N_up = n_updrafts(turbconv)
     z = altitude(bl, aux)
-    for i in 1:N_up
+
+    ntuple(N_up) do i
         # if integ.turbconv.updraft[i].H < 0
         #     @show z, i, integ.turbconv.updraft[i].H
         #     # error("Bad integ.turbconv.updraft[i].H in integral_set_auxiliary_state!")

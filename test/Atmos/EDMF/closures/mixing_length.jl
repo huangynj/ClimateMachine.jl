@@ -24,7 +24,7 @@ function mixing_length(
     N_up = n_updrafts(m.turbconv)
 
     z = altitude(m, aux)
-    _grav = FT(grav(m.param_set))
+    _grav::FT = grav(m.param_set)
     ρinv = 1 / gm.ρ
 
     # precompute
@@ -79,7 +79,7 @@ function mixing_length(
     a = ml.c_m * (Shear - ∂b∂z/Pr_z) * sqrt(tke)
     # Dissipation term
     b = FT(0)
-    for i in 1:N_up
+    ntuple(N_up) do i
         a_up = up[i].ρa * ρinv
         w_up = up[i].ρaw / up[i].ρa
         b +=

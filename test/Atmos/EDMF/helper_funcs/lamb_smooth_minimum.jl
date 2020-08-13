@@ -1,12 +1,11 @@
 using LambertW
 # TODO: Add documentation
 function lamb_smooth_minimum(
-    l::AbstractArray{FT,N};
+    l::AbstractArray{FT};
     lower_bound::FT = FT(0.1),
     frac_upper_bound::FT = FT(1.5),
-) where {FT,N}
+) where {FT}
 
-    leng = size(l)
     xmin = minimum(l)
 
     lambda0 = max(
@@ -17,7 +16,7 @@ function lamb_smooth_minimum(
 
     num = 0
     den = 0
-    for i in 1:length(l)
+    ntuple(length(l)) do i
         num += l[i] * exp(-(l[i] - xmin) / lambda0)
         den += exp(-(l[i] - xmin) / lambda0)
     end
