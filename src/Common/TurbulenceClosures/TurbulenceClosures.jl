@@ -86,10 +86,13 @@ export TurbulenceClosureModel,
     NoHyperDiffusion,
     DryBiharmonic,
     EquilMoistBiharmonic,
+    NoViscousSponge,
+    TrialSponge,
     turbulence_tensors,
     init_aux_turbulence!,
     init_aux_hyperdiffusion!,
-    turbulence_nodal_update_auxiliary_state!
+    turbulence_nodal_update_auxiliary_state!,
+    sponge_viscosity_modifier!
 
 # ### Abstract Type
 # We define a `TurbulenceClosureModel` abstract type and
@@ -107,6 +110,12 @@ abstract type TurbulenceClosureModel end
     Abstract type for Hyperdiffusion models
 """
 abstract type HyperDiffusion end
+
+"""
+    Abstract type for viscous sponge layers. 
+Modifier for viscosity computed from existing turbulence closures.
+"""
+abstract type ViscousSponge end
 
 vars_state_conservative(::TurbulenceClosureModel, FT) = @vars()
 vars_state_auxiliary(::TurbulenceClosureModel, FT) = @vars()
@@ -403,81 +412,6 @@ function turbulence_tensors(
     D_t = ν * _inv_Pr_turb
     τ = (-2 * ν) * S + (2 * ν / 3) * tr(S) * I
     return ν, D_t, τ
-end
-
-# ### [Viscous Sponge](@id viscous-sponge)
-# `ViscousSponge` requires a user to specify a constant viscosity (kinematic), 
-# a sponge start height, the domain height, a sponge strength, and a sponge
-# exponent.
-# It works like `ConstantViscosityWithDivergence` but without divergence and is
-# typically used at the top of the domain to absorb waves. A smooth onset is
-# ensured through a weight function that increases weight height from the sponge
-# onset height.
-# ```
-"""
-    ViscousSponge <: TurbulenceClosureModel
-
-Sponge layer with constant dynamic viscosity (`ρν`).
-
-# Fields
-
-$(DocStringExtensions.FIELDS)
-"""
-struct ViscousSponge{FT} <: TurbulenceClosureModel
-    "Dynamic Viscosity [kg/m/s]"
-    ρν::FT
-    "Maximum domain altitude (m)"
-    z_max::FT
-    "Altitude at with sponge starts (m)"
-    z_sponge::FT
-    "Sponge Strength 0 ⩽ α_max ⩽ 1"
-    α_max::FT
-    "Sponge exponent"
-    γ::FT
-end
-
-vars_state_gradient(::ViscousSponge, FT) = @vars()
-vars_state_gradient_flux(::ViscousSponge, FT) =
-    @vars(S::SHermitianCompact{3, FT, 6})
-
-function compute_gradient_flux!(
-    ::ViscousSponge,
-    ::Orientation,
-    diffusive::Vars,
-    ∇transform::Grad,
-    state::Vars,
-    aux::Vars,
-    t::Real,
-)
-
-    diffusive.turbulence.S = symmetrize(∇transform.u)
-end
-
-function turbulence_tensors(
-    m::ViscousSponge,
-    orientation::Orientation,
-    param_set::AbstractParameterSet,
-    state::Vars,
-    diffusive::Vars,
-    aux::Vars,
-    t::Real,
-)
-
-    FT = eltype(state)
-    _inv_Pr_turb::FT = inv_Pr_turb(param_set)
-    S = diffusive.turbulence.S
-    ν = m.ρν / state.ρ
-    D_t = ν * _inv_Pr_turb
-    
-    z = altitude(orientation, param_set, aux)
-    if z >= m.z_sponge
-        r = (z - m.z_sponge) / (m.z_max - m.z_sponge)
-        β_sponge = m.α_max * sinpi(r / 2)^m.γ
-        ν += β_sponge * ν
-    end
-    τ = (-2 * ν) * S
-    
-    return ν, D_t, τ  
 end
 
 # ### [Smagorinsky-Lilly](@id smagorinsky-lilly)
@@ -1041,4 +975,58 @@ function flux_second_order!(
     flux.ρe += hyperdiffusive.hyperdiffusion.ν∇³u_h * state.ρu
     flux.ρe += hyperdiffusive.hyperdiffusion.ν∇³h_tot * state.ρ
 end
+
+# ### [Viscous Sponge](@id viscous-sponge)
+# `ViscousSponge` requires a user to specify a constant viscosity (kinematic), 
+# a sponge start height, the domain height, a sponge strength, and a sponge
+# exponent.
+# It works like `ConstantViscosityWithDivergence` but without divergence and is
+# typically used at the top of the domain to absorb waves. A smooth onset is
+# ensured through a weight function that increases weight height from the sponge
+# onset height.
+# ```
+""" NoViscousSponge """
+struct NoViscousSponge <: ViscousSponge end
+function sponge_viscosity_modifier!(
+    bl::BalanceLaw,
+    m::NoViscousSponge,
+    ν,
+    D_t
+)
+    nothing   
+end
+
+""" Upper domain viscous relaxation 
+
+# Fields 
+#
+$(DocStringExtensions.FIELDS)
+"""
+
+struct TrialSponge{FT} <: ViscousSponge 
+    "Maximum domain altitude (m)"
+    z_max::FT
+    "Altitude at with sponge starts (m)"
+    z_sponge::FT
+    "Sponge Strength 0 ⩽ α_max ⩽ 1"
+    α_max::FT
+    "Sponge exponent"
+    γ::FT
+end
+
+function sponge_viscosity_modifier!(
+    bl::BalanceLaw,
+    m::TrialSponge,
+    ν,
+    D_t
+)
+    z = altitude(orientation, param_set, aux)
+    if z >= m.sponge
+        r = (z-m.z_sponge) / (m.z_max - m.z_sponge)
+        β_sponge = m.α_max * sinpi(r/2)^m.γ
+        ν += β_sponge * ν
+        D_t += β_sponge * D_t
+    end
+end
+
 end #module TurbulenceClosures.jl
