@@ -1,4 +1,6 @@
 
+using LinearAlgebra: Givens
+
 export BatchedGeneralizedMinimalResidual
 
 """
@@ -57,13 +59,13 @@ mutable struct BatchedGeneralizedMinimalResidual{
     "global Krylov basis at previous step"
     krylov_basis_prev::AT
     "global batched Krylov basis"
-    batched_krylov_basis::NTuple{MP1, Matrix{T}}
+    batched_krylov_basis::Array{T, 3}
     "Hessenberg matrix in each column"
-    H::NTuple{Nbatch, Matrix{T}}
+    H::Array{T, 3}
     "rhs of the least squares problem in each column"
-    g0::NTuple{Nbatch, Vector{T}}
+    g0::Matrix{T}
     "solution of the least squares problem in each column"
-    y::NTuple{Nbatch, Vector{T}}
+    y::Matrix{T}
     "The GMRES iterate in each batched column"
     sol::Matrix{T}
     rtol::T
@@ -107,14 +109,13 @@ mutable struct BatchedGeneralizedMinimalResidual{
         end
 
         # Create storage for holding the batched Krylov basis
-        batched_krylov_basis = ntuple(
-            i -> ArrayType(-zeros(eltype(AT), dofperbatch, Nbatch)),
-            M + 1,
-        )
+        batched_krylov_basis = ArrayType(zeros(eltype(AT), M + 1, dofperbatch, Nbatch))
+
         # Create storage for doing the batched Arnoldi process
-        H = ntuple(i -> ArrayType(-zeros(eltype(AT), M + 1, M)), Nbatch)
-        g0 = ntuple(i -> ArrayType(-zeros(eltype(AT), M + 1)), Nbatch)
-        y = ntuple(i -> ArrayType(-zeros(eltype(AT), M + 1)), Nbatch)
+        H = ArrayType(zeros(eltype(AT), Nbatch, M + 1, M))
+        g0 = ArrayType(zeros(eltype(AT), Nbatch, M + 1))
+        y = ArrayType(zeros(eltype(AT), Nbatch, M + 1))
+
         sol = ArrayType(-zeros(eltype(AT), dofperbatch, Nbatch))
         resnorms = ArrayType(-zeros(eltype(AT), Nbatch))
         resnorms0 = ArrayType(-zeros(eltype(AT), Nbatch))
@@ -269,6 +270,7 @@ function initialize!(
     forward_permute = solver.forward_permute
     resnorms = solver.resnorms
     resnorms0 = solver.resnorms0
+
     # Get device and groupsize information
     device = array_device(Q)
     if isa(device, CPU)
@@ -287,26 +289,30 @@ function initialize!(
     krylov_basis .= Qrhs .- krylov_basis
 
     # Convert into a batched Krylov basis vector
+    tmp_array = similar(batched_krylov_basis[1, :, :])
     convert_structure!(
-        batched_krylov_basis[1],
+        tmp_array,
         krylov_basis,
         forward_reshape,
         forward_permute,
     )
+    batched_krylov_basis[1, :, :] .= tmp_array
+    #
 
     # Now we initialize across all columns (solver.batch_size).
     # This function also computes the residual norm in each column
     event = Event(device)
+    # @show solver.batch_size
+    # @show g0
+    # @show resnorms
     event = batched_initialize!(device, groupsize)(
         resnorms,
         g0,
-        batched_krylov_basis[1];
+        batched_krylov_basis;
         ndrange = solver.batch_size,
         dependencies = (event,),
     )
     wait(device, event)
-
-    
 
     # When restarting, we do not want to overwrite the initial threshold,
     # otherwise we may not get an accurate indication that we have sufficiently
@@ -368,7 +374,7 @@ function doiteration!(
     # Main batched-GMRES iteration cycle
     converged = false
     residual_norm = typemax(FT)
-    Ωs = ntuple(i -> LinearAlgebra.Rotation{FT}([]), solver.batch_size)
+    Ωs = similar(Q, Givens{FT}, (solver.max_iter, solver.batch_size))
     j = 1
     for outer j in 1:(solver.max_iter)
         # FIXME: To make this a truly batched method, we need to be able
@@ -378,7 +384,7 @@ function doiteration!(
         # PRECONDITIONER: batched_krylov_basis[j] ->  P^{-1}batched_krylov_basis[j]
         convert_structure!(
             krylov_basis_prev,
-            batched_krylov_basis[j],
+            view(batched_krylov_basis, j, :, :),
             backward_reshape,
             backward_permute,
         )
@@ -389,7 +395,7 @@ function doiteration!(
         # Now that we have a global Krylov vector, we reshape and batch
         # the Arnoldi iterations across all columns
         convert_structure!(
-            batched_krylov_basis[j + 1],
+            view(batched_krylov_basis, j + 1, : , :),
             krylov_basis,
             forward_reshape,
             forward_permute,
@@ -442,8 +448,6 @@ function doiteration!(
     # Unwind reshaping and return solution in standard format
     convert_structure!(Q, sols, backward_reshape, backward_permute)
 
-
-
     # if not converged, then restart
     converged || initialize!(
         linearoperator!,
@@ -460,14 +464,14 @@ end
 @kernel function batched_initialize!(resnorms, g0, batched_krylov_basis)
     cidx = @index(Global)
     FT = eltype(batched_krylov_basis)
-    fill!(g0[cidx], FT(0.0))
+    g0[cidx, :] .= FT(0.0)
 
     # Compute the column norm of the initial residual r0
-    local_residual_norm = norm(batched_krylov_basis[:, cidx], false)
+    local_residual_norm = norm(batched_krylov_basis[1, :, cidx], false)
     # Set g0 = βe1, where β = |r0|
-    g0[cidx][1] = local_residual_norm
+    g0[cidx, 1] = local_residual_norm
     # Normalize the batched_krylov_basis by the (local) residual norm
-    batched_krylov_basis[:, cidx] ./= local_residual_norm
+    batched_krylov_basis[1, :, cidx] ./= local_residual_norm
     # Record initialize residual norm in the column
     resnorms[cidx] = local_residual_norm
 
@@ -483,35 +487,38 @@ end
     j,
 )
     cidx = @index(Global)
-    g0 = g0s[cidx]
-    H = Hs[cidx]
-    Ω = Ωs[cidx]
+    g0 = view(g0s, cidx, :)
+    H = view(Hs, cidx, :, :)
+    Ω = @view Ωs[:, cidx]
 
     # Arnoldi process in the local column `cidx`
     @inbounds for i in 1:j
         H[i, j] = dot(
-            batched_krylov_basis[j + 1][:, cidx],
-            batched_krylov_basis[i][:, cidx],
+            batched_krylov_basis[j + 1, :, cidx],
+            batched_krylov_basis[i, :, cidx],
             false,
         )
-        batched_krylov_basis[j + 1][:, cidx] .-=
-            H[i, j] * batched_krylov_basis[i][:, cidx]
+        batched_krylov_basis[j + 1, :, cidx] .-=
+            H[i, j] * batched_krylov_basis[i, :, cidx]
     end
-    H[j + 1, j] = norm(batched_krylov_basis[j + 1][:, cidx], false)
-    batched_krylov_basis[j + 1][:, cidx] ./= H[j + 1, j]
+    H[j + 1, j] = norm(batched_krylov_basis[j + 1, :, cidx], false)
+    batched_krylov_basis[j + 1, :, cidx] ./= H[j + 1, j]
 
     # apply the previous Givens rotations to the new column of H
-    @views H[1:j, j:j] .= Ω * H[1:j, j:j]
+    @inbounds for i in 1:(j-1)
+        G = Ω[i]
+        lmul!(G, @view(H[1:j, j:j]))
+    end
 
     # compute a new Givens rotation to zero out H[j + 1, j]
     G, _ = givens(H, j, j + 1, j)
 
     # apply the new rotation to H and the rhs
-    H .= G * H
-    g0 .= G * g0
+    lmul!(G, H)
+    lmul!(G, g0)
 
     # Compose the new rotation with the others
-    Ω = lmul!(G, Ω)
+    Ω[j] = G
     resnorms[cidx] = abs(g0[j + 1])
 
     nothing
@@ -529,16 +536,26 @@ end
     # iteration that minimizes ∥ b - A xⱼ ∥_2, where
     # xⱼ = ∑ᵢ yᵢ Ψᵢ, with Ψᵢ denoting the Krylov basis vectors
     cidx = @index(Global)
-    g0 = g0s[cidx]
-    H = Hs[cidx]
-    y = ys[cidx]
+ 
     # TODO: Is this GPU-safe?
-    y[1:j] .= UpperTriangular(H[1:j, 1:j]) \ g0[1:j]
+    ys[cidx, 1:j] .= UpperTriangular(Hs[cidx, 1:j, 1:j]) \ g0s[cidx, 1:j]
+
+    #= do the backsolve
+    @inbounds for i in j:-1:1
+        g0s[cidx, i] /= Hs[cidx, i, i]
+        @inbounds for j in 1:(i - 1)
+            g0s[cidx, j] -= Hs[cidx, j, i] * g0s[cidx, i]
+        end
+    end
+    ys[cidx, 1:j] .= g0s[cidx, 1:j]
+    =#
+
+
 
     # Having determined yᵢ, we now construct the GMRES solution
     # in each column: xⱼ = ∑ᵢ yᵢ Ψᵢ
     @inbounds for i in 1:j
-        sols[:, cidx] .+= y[i] * batched_krylov_basis[i][:, cidx]
+        sols[:, cidx] .+= ys[cidx, i] * batched_krylov_basis[i, :, cidx]
     end
 
     nothing
@@ -563,7 +580,11 @@ Computes a tensor transpose and stores result in x
 @inline function convert_structure!(x, y, reshape_tuple, permute_tuple)
     alias_y = reshape(y, reshape_tuple)
     permute_y = permutedims(alias_y, permute_tuple)
-    x[:] .= permute_y[:]
+    # x .= reshape(permute_y, size(x))
+    # xshape = size(x)
+    # x .= reshape(PermutedDimsArray(reshape(y, reshape_tuple), permute_tuple), xshape)
+    # x[:] .= permute_y[:]
+    copyto!(x, reshape(permute_y, size(x)))
     nothing
 end
 @inline convert_structure!(x, y::MPIStateArray, reshape_tuple, permute_tuple) =
