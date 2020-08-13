@@ -466,6 +466,13 @@ function turbconv_nodal_update_auxiliary_state!(
         up_a[i].buoyancy -= b_gm
     end
     en_a.buoyancy -= b_gm
+    for i in 1:N_up
+        ε_dyn[i] ,δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+        up_a[i].ε_dyn = ε_dyn[i]
+        up_a[i].δ_dyn = δ_dyn[i]
+        up_a[i].ε_trb = ε_trb[i]
+    end 
+
 end;
 
 enforce_unit_bounds(x::FT) where {FT} = clamp(x, FT(1e-3), FT(1-1e-3))
@@ -620,13 +627,7 @@ function turbconv_source!(
 
         # first moment sources - for now we compute these as aux variable 
         ε_dyn[i] ,δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
-        up_a[i].ε_dyn = ε_dyn[i]
-        up_a[i].δ_dyn = δ_dyn[i]
-        up_a[i].ε_trb = ε_trb[i]
-        up_a[i].ε_δ = ε_dyn[i] - δ_dyn[i]
-
         dpdz, dpdz_tke_i  = perturbation_pressure(m, m.turbconv.pressure, state, diffusive, aux, t, direction, i)
-        up_a[i].dpdz = dpdz
 
         # entrainment and detrainment
         up_s[i].ρa      += up[i].ρaw * (ε_dyn[i] - δ_dyn[i])
