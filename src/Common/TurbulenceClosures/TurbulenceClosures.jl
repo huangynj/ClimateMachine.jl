@@ -991,7 +991,8 @@ function sponge_viscosity_modifier!(
     bl::BalanceLaw,
     m::NoViscousSponge,
     ν,
-    D_t
+    D_t,
+    aux
 )
     nothing   
 end
@@ -1018,9 +1019,10 @@ function sponge_viscosity_modifier!(
     bl::BalanceLaw,
     m::TrialSponge,
     ν,
-    D_t
+    D_t,
+    aux::Vars
 )
-    z = altitude(orientation, param_set, aux)
+    z = altitude(bl.orientation, bl.param_set, aux)
     if z >= m.sponge
         r = (z-m.z_sponge) / (m.z_max - m.z_sponge)
         β_sponge = m.α_max * sinpi(r/2)^m.γ
