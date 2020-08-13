@@ -856,5 +856,20 @@ function numerical_flux_first_order!(
             w3 * (ũ' * ũ / 2 + Φ - _T_0 * _cv_d) +
             w4 * (ũ' * Δu - ũᵀn * Δuᵀn)
         ) / 2
+
+    if !(balance_law.tracers isa NoTracers)
+        ρχ⁻ = state_conservative⁻.tracers.ρχ
+        χ⁻ = ρχ⁻ / ρ⁻
+
+        ρχ⁺ = state_conservative⁺.tracers.ρχ
+        χ⁺ = ρχ⁺ / ρ⁺
+
+        χ̃ = roe_average(ρ⁻, ρ⁺, χ⁻, χ⁺)
+        Δρχ = ρχ⁺ - ρχ⁻
+
+        wt = abs(ũᵀn) * (Δρχ - χ̃ * Δp / c̃^2)
+
+        fluxᵀn.tracers.ρχ -= ((w1 + w2) * χ̃ + wt) / 2
+    end
 end
 end # module
