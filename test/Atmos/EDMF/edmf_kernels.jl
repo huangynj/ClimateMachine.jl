@@ -198,7 +198,6 @@ function vars_state(::Updraft, ::Auxiliary, FT)
         δ_dyn::FT,
         ε_trb::FT,
         ε_δ::FT,
-        dpdz::FT,
         T::FT,
         H::FT,
         H_integ::FT,
@@ -467,10 +466,10 @@ function turbconv_nodal_update_auxiliary_state!(
     end
     en_a.buoyancy -= b_gm
     for i in 1:N_up
-        ε_dyn[i] ,δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
-        up_a[i].ε_dyn = ε_dyn[i]
-        up_a[i].δ_dyn = δ_dyn[i]
-        up_a[i].ε_trb = ε_trb[i]
+        ε_dyn, δ_dyn, ε_trb = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+        up_a[i].ε_dyn = ε_dyn
+        up_a[i].δ_dyn = δ_dyn
+        up_a[i].ε_trb = ε_trb
     end 
 
 end;
