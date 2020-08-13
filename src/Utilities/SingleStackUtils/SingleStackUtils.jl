@@ -327,9 +327,9 @@ function dict_of_nodal_states(
             solver_config.dg.grid,
             get_data(solver_config, st),
             vars_state(solver_config.dg.balance_law, st, FT),
-            exclude = st isa Auxiliary ? aux_excludes : [],
+            exclude = st isa Auxiliary ? aux_excludes : String[],
         )
-        push!(all_state_vars, state_vars)
+        push!(all_state_vars, state_vars...)
     end
     return OrderedDict(all_state_vars...)
 end

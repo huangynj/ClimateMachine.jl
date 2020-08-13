@@ -529,7 +529,8 @@ function main()
     # For a full-run, please set the timeend to 3600*6 seconds
     # For the test we set this to == 30 minutes
     # timeend = FT(13.805585)
-    timeend = FT(400)
+    # timeend = FT(400)
+    timeend = FT(2)
     #timeend = FT(3600 * 6)
     CFLmax = FT(0.90)
 
@@ -578,10 +579,11 @@ function main()
     grid = driver_config.grid
     output_dir = ClimateMachine.Settings.output_dir
     @show output_dir
-    all_data = [dict_of_nodal_states(solver_config, ["z"])]
+    state_types = (Prognostic(), Auxiliary(), GradientFlux())
+    all_data = [dict_of_nodal_states(solver_config, ["z"], state_types)]
     time_data = FT[0]
 
-    export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "ICs"))
+    export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "ICs"); state_types=state_types)
 
     # Define the number of outputs from `t0` to `timeend`
     n_outputs = 4;
@@ -590,7 +592,7 @@ function main()
 
     cb_data_vs_time = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
     # cb_data_vs_time = GenericCallbacks.EveryXSimulationSteps(1) do
-        push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
+        push!(all_data, dict_of_nodal_states(solver_config, ["z"], state_types))
         push!(time_data, gettime(solver_config.solver))
         @show gettime(solver_config.solver)
         @show getsteps(solver_config.solver)
@@ -616,10 +618,10 @@ function main()
         check_euclidean_distance = true,
         # numberofsteps = 291
     )
-    push!(all_data, dict_of_nodal_states(solver_config, ["z"]))
+    push!(all_data, dict_of_nodal_states(solver_config, ["z"], state_types))
     push!(time_data, gettime(solver_config.solver))
 
-    export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "runtime"))
+    export_state_plots(solver_config, all_data, time_data, joinpath(clima_dir, "output", "runtime"); state_types=state_types)
 
     @show kernel_calls
     # @test all(values(kernel_calls))
