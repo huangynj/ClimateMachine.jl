@@ -79,6 +79,8 @@ import ..DGMethods.NumericalFluxes:
 
 import ..Courant: advective_courant, nondiffusive_courant, diffusive_courant
 
+struct RoeNumericalFlux <: NumericalFluxFirstOrder end
+
 """
     AtmosModel <: BalanceLaw
 
@@ -744,7 +746,6 @@ function init_state_prognostic!(
     m.init_state_prognostic(m, state, aux, coords, t, args...)
 end
 
-struct RoeNumericalFlux <: NumericalFluxFirstOrder end
 
 roe_average(ρ⁻, ρ⁺, var⁻, var⁺) =
     (sqrt(ρ⁻) * var⁻ + sqrt(ρ⁺) * var⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
