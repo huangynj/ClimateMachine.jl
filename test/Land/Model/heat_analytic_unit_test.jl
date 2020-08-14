@@ -61,32 +61,39 @@ end
         _T_ref = myFT(T_0(param_set))
         _LH_f0 = myFT(LH_f0(param_set))
 
-       ϑ_l, θ_ice = get_water_content(land.soil.water, aux, state, time)
-       θ_l = volumetric_liquid_fraction(ϑ_l, land.soil.param_functions.porosity)
-       c_s = volumetric_heat_capacity(θ_l, θ_ice, land.soil.param_functions.c_ds,
-                                      _cp_l, _cp_i)
+        ϑ_l, θ_ice = get_water_content(land.soil.water, aux, state, time)
+        θ_l =
+            volumetric_liquid_fraction(ϑ_l, land.soil.param_functions.porosity)
+        c_s = volumetric_heat_capacity(
+            θ_l,
+            θ_ice,
+            land.soil.param_functions.c_ds,
+            _cp_l,
+            _cp_i,
+        )
 
         state.soil.heat.I = myFT(internal_energy(
-        θ_ice,
-        c_s,
-        land.soil.heat.initialT(aux),
-        _T_ref,
-        _ρ_i,
-        _LH_f0))
+            θ_ice,
+            c_s,
+            land.soil.heat.initialT(aux),
+            _T_ref,
+            _ρ_i,
+            _LH_f0,
+        ))
     end
 
     soil_param_functions = SoilParamFunctions{FT}(
-            porosity = 0.495,
-            ν_gravel = 0.1,
-            ν_om = 0.1,
-            ν_sand = 0.1,
-            c_ds = 1,
-            κ_dry = 1,
-            κ_sat_unfrozen = 0.57,
-            κ_sat_frozen = 2.29,
-            a = 0.24,
-            b = 18.1
-            )
+        porosity = 0.495,
+        ν_gravel = 0.1,
+        ν_om = 0.1,
+        ν_sand = 0.1,
+        c_ds = 1,
+        κ_dry = 1,
+        κ_sat_unfrozen = 0.57,
+        κ_sat_frozen = 2.29,
+        a = 0.24,
+        b = 18.1,
+    )
 
     zero_output = FT(0.0)
     surface_value = FT(0.0)
@@ -100,9 +107,8 @@ end
     initial_temp = FT(0.0)
     T_init = (aux) -> initial_temp
 
-    soil_water_model  = PrescribedWaterModel((aux, t) -> zero_output,
-                                             (aux, t) -> zero_output
-                                             )
+    soil_water_model =
+        PrescribedWaterModel((aux, t) -> zero_output, (aux, t) -> zero_output)
 
     soil_heat_model = SoilHeatModel(
         FT;
@@ -111,10 +117,7 @@ end
             surface_state = heat_surface_state,
             bottom_state = heat_bottom_state,
         ),
-        neumann_bc = Neumann(
-            surface_flux = nothing,
-            bottom_flux = nothing
-        ),
+        neumann_bc = Neumann(surface_flux = nothing, bottom_flux = nothing),
     )
 
     m_soil = SoilModel(soil_param_functions, soil_water_model, soil_heat_model)
@@ -147,13 +150,12 @@ end
     t0 = FT(0)
     timeend = FT(5)
 
-    solver_config =
-        ClimateMachine.SolverConfiguration(
-            t0,
-            timeend,
-            driver_config;
-            Courant_number = FT(0.7),
-            CFL_direction = VerticalDirection(),
+    solver_config = ClimateMachine.SolverConfiguration(
+        t0,
+        timeend,
+        driver_config;
+        Courant_number = FT(0.7),
+        CFL_direction = VerticalDirection(),
     )
     mygrid = solver_config.dg.grid
     aux = solver_config.dg.state_auxiliary
@@ -167,7 +169,9 @@ end
     T_ind = varsindex(vars_state(m, Auxiliary(), FT), :soil, :heat, :T)
     T = Array(aux[:, T_ind, :][:])
 
-    num = exp.(sqrt(ω / 2) * (1 + im) * (1 .- z)) .- exp.(-sqrt(ω / 2) * (1 + im) * (1 .- z))
+    num =
+        exp.(sqrt(ω / 2) * (1 + im) * (1 .- z)) .-
+        exp.(-sqrt(ω / 2) * (1 + im) * (1 .- z))
     denom = exp(sqrt(ω / 2) * (1 + im)) - exp.(-sqrt(ω / 2) * (1 + im))
     analytic_soln = real(num .* A * exp(im * ω * timeend) / denom)
     MSE = mean((analytic_soln .- T) .^ 2.0)

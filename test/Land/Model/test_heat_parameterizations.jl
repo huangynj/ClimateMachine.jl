@@ -12,7 +12,7 @@ using ClimateMachine
 using ClimateMachine.Land.SoilHeatParameterizations
 
 @testset "Land heat parameterizations" begin
-    FT = Float64;
+    FT = Float64
     # Density of liquid water (kg/m``^3``)
     _ρ_l = FT(ρ_cloud_liq(param_set))
     # Density of ice water (kg/m``^3``)
@@ -26,71 +26,43 @@ using ClimateMachine.Land.SoilHeatParameterizations
     # Latent heat of fusion at ``T_0`` (J/kg)
     _LH_f0 = FT(LH_f0(param_set))
 
-    @test round(volumetric_heat_capacity(
-        0.25,
-        0.05,
-        1e6,
-        _cp_l,
-        _cp_i
-    ),sigdigits=5) == FT(2.1415e+06)
+    @test round(
+        volumetric_heat_capacity(0.25, 0.05, 1e6, _cp_l, _cp_i),
+        sigdigits = 5,
+    ) == FT(2.1415e+06)
 
-    @test round(internal_energy(
-        0.05,
-        2.1415e+06,
-        300.0,
-        _T_ref,
-        _ρ_i,
-        _LH_f0
-    ),sigdigits=5) == FT(4.2187e+07)
+    @test round(
+        internal_energy(0.05, 2.1415e+06, 300.0, _T_ref, _ρ_i, _LH_f0),
+        sigdigits = 5,
+    ) == FT(4.2187e+07)
 
-    @test round(saturated_thermal_conductivity(
-        0.25,
-        0.05,
-        0.57,
-        2.29
-    ), sigdigits=4) == FT(0.7187)
+    @test round(
+        saturated_thermal_conductivity(0.25, 0.05, 0.57, 2.29),
+        sigdigits = 4,
+    ) == FT(0.7187)
 
-    @test round(relative_saturation(
-        0.25,
-        0.05,
-        0.4
-    ), sigdigits=2) == FT(0.75)
+    @test round(relative_saturation(0.25, 0.05, 0.4), sigdigits = 2) == FT(0.75)
 
     # Test branching in kersten_number
 
     # ice fraction = 0
-    @test round(kersten_number(
-        0.0,
-        0.75,
-        0.24,
-        18.1,
-        0.1,
-        0.1,
-        0.1
-    ), sigdigits=4) == FT(0.8675)
+    @test round(
+        kersten_number(0.0, 0.75, 0.24, 18.1, 0.1, 0.1, 0.1),
+        sigdigits = 4,
+    ) == FT(0.8675)
 
     # ice fraction ~= 0
-    @test round(kersten_number(
-        0.05,
-        0.75,
-        0.24,
-        18.1,
-        0.1,
-        0.1,
-        0.1
-    ), sigdigits=4) == FT(0.7287)
+    @test round(
+        kersten_number(0.05, 0.75, 0.24, 18.1, 0.1, 0.1, 0.1),
+        sigdigits = 4,
+    ) == FT(0.7287)
 
-    @test round(thermal_conductivity(
-        1.5,
-        0.7287,
-        0.7187
-    ), sigdigits=3) == FT(0.931)
+    @test round(thermal_conductivity(1.5, 0.7287, 0.7187), sigdigits = 3) ==
+          FT(0.931)
 
-    @test round(internal_energy_liquid_water(
-        _cp_l,
-        300.0,
-        _T_ref,
-        _ρ_l
-    ), sigdigits=4) == FT(1.122e+11)
+    @test round(
+        internal_energy_liquid_water(_cp_l, 300.0, _T_ref, _ρ_l),
+        sigdigits = 4,
+    ) == FT(1.122e+11)
 
 end

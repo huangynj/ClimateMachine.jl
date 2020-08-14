@@ -62,7 +62,8 @@ liquid and ice form, and water content is conserved upon phase change.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SoilWaterModel{FT, IF, VF, MF, HM, Fiϑl, Fiθi, BCD, BCN} <: AbstractWaterModel
+struct SoilWaterModel{FT, IF, VF, MF, HM, Fiϑl, Fiθi, BCD, BCN} <:
+       AbstractWaterModel
     "Impedance Factor - will be 1 or ice dependent"
     impedance_factor::IF
     "Viscosity Factor - will be 1 or temperature dependent"
@@ -135,7 +136,7 @@ function get_water_content(
     water::SoilWaterModel,
     aux::Vars,
     state::Vars,
-    t::Real
+    t::Real,
 )
     FT = eltype(state)
     return FT(state.soil.water.ϑ_l), FT(state.soil.water.θ_ice)
@@ -157,7 +158,7 @@ function get_water_content(
     water::PrescribedWaterModel,
     aux::Vars,
     state::Vars,
-    t::Real
+    t::Real,
 )
     FT = eltype(aux)
     ϑ_l = water.ϑ_l(aux, t)
@@ -199,7 +200,7 @@ Return the moisture variables for the prescribed soil water model.
 function get_initial_water_content(
     water::PrescribedWaterModel,
     aux::Vars,
-    t::Real
+    t::Real,
 )
     FT = eltype(aux)
     ϑ_l = water.ϑ_l(aux, t)
@@ -216,7 +217,11 @@ end
 
 """
 """
-function get_diffusive_water_flux(water::PrescribedWaterModel, diffusive::Vars, FT)
+function get_diffusive_water_flux(
+    water::PrescribedWaterModel,
+    diffusive::Vars,
+    FT,
+)
     return SVector{3, FT}(0, 0, 0)
 end
 
@@ -274,7 +279,7 @@ function land_nodal_update_auxiliary_state!(
     aux::Vars,
     t::Real,
 )
-    T = get_temperature(land.soil.heat,aux,state,t)
+    T = get_temperature(land.soil.heat, aux, state, t)
     S_l = effective_saturation(
         soil.param_functions.porosity,
         state.soil.water.ϑ_l,
