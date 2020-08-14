@@ -52,3 +52,9 @@ ClimateMachine.Atmos.Insulating
 ClimateMachine.Atmos.NoSlip
 ClimateMachine.Atmos.average_density
 ```
+
+## Sources
+
+```@docs
+ClimateMachine.Atmos.RemovePrecipitation
+```

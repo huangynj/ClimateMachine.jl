@@ -33,18 +33,18 @@ The thresholds and the relaxation timescale are defined in
 CLIMAParameters.
 """
 # TODO:
-# - τ_rain_removal(param_set), etc - move to ClimaParameters
-# - have dt instead of constant timescale?
+# - τ_precip(param_set), etc - move to ClimaParameters
+# - have dt here instead of constant timescale?
 
 function remove_precipitation(
     param_set::APS,
     q::PhasePartition{FT},
 ) where {FT <: Real}
 
-    _τ_rain_removal::FT = FT(1000)
-    _qc_precip_thr::FT = FT(5e-3)
+    _τ_precip::FT = FT(1000)
+    _qc_0::FT = FT(5e-3)
 
-    return -max(FT(0), (q.liq + q.ice - _qc_precip_thr)) / _τ_rain_removal
+    return -max(0, (q.liq + q.ice - _qc_0)) / _τ_precip
 end
 
 function remove_precipitation(
@@ -53,11 +53,10 @@ function remove_precipitation(
     q_vap_sat::FT,
 ) where {FT <: Real}
 
-    _τ_rain_removal::FT = FT(1000)
-    _S_precip_thr::FT = FT(0.02)
+    _τ_precip::FT = FT(1000)
+    _S_0::FT = FT(0.02)
 
-    return -max(FT(0), (q.liq + q.ice - _S_precip_thr * q_vap_sat)) /
-           _τ_rain_removal
+    return -max(0, (q.liq + q.ice - _S_0 * q_vap_sat)) / _τ_precip
 end
 
 end #module Microphysics_0M.jl

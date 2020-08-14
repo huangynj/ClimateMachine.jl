@@ -185,9 +185,10 @@ end
 """
     RemovePrecipitation{FT} <: Source
 
-Cloud condensate removal when exceeding certain threshold.
+`q_tot` removal when cloud condensate is exceeding a threshold.
 The threshold is defined either in terms of condensate or supersaturation.
-Implemented (right now) as a relaxation term.
+The removal rate is implemented as a relaxation term
+in the Microphysics_0M module.
 The default thresholds and timescale are defined in CLIMAParameters.jl.
 """
 struct RemovePrecipitation <: Source
@@ -195,7 +196,7 @@ struct RemovePrecipitation <: Source
     use_qc_thr::Bool
 end
 function atmos_source!(
-    ::RemovePrecipitation,
+    s::RemovePrecipitation,
     atmos::AtmosModel,
     source::Vars,
     state::Vars,
@@ -220,7 +221,7 @@ function atmos_source!(
         q_dry::FT = 1 - q.tot
 
         dqt_dt::FT = 0
-        if use_qc_thr
+        if s.use_qc_thr
             dqt_dt = remove_precipitation(atmos.param_set, q)
         else
             ts_neq = TemperatureSHumNonEquil(atmos.param_set, T, state.ρ, q)
@@ -243,7 +244,7 @@ function atmos_source!(
                 q.liq / (q.liq + q.ice) * (_cv_l - _cv_d) * (T - _T_0) +
                 q.ice / (q.liq + q.ice) *
                 ((_cv_i - _cv_d) * (T - _T_0) - _e_int_i0) +
-                state.ρe / state.ρ
+                state.ρe / state.ρ / q_dry
             ) *
             state.ρ *
             dqt_dt
