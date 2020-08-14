@@ -17,6 +17,10 @@ const APS = AbstractParameterSet
 
 export remove_precipitation
 
+# TODO:
+# - τ_precip(param_set), etc - move to ClimaParameters
+# - have dt here instead of constant timescale?
+
 """
     remove_precipitation(param_set::APS, q; q_vap_sat)
 
@@ -32,10 +36,6 @@ condensate specific humidity or supersaturation.
 The thresholds and the relaxation timescale are defined in
 CLIMAParameters.
 """
-# TODO:
-# - τ_precip(param_set), etc - move to ClimaParameters
-# - have dt here instead of constant timescale?
-
 function remove_precipitation(
     param_set::APS,
     q::PhasePartition{FT},
@@ -46,7 +46,6 @@ function remove_precipitation(
 
     return -max(0, (q.liq + q.ice - _qc_0)) / _τ_precip
 end
-
 function remove_precipitation(
     param_set::APS,
     q::PhasePartition{FT},
