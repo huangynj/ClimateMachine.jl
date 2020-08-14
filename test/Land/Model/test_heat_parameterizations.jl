@@ -41,6 +41,11 @@ using ClimateMachine.Land.SoilHeatParameterizations
         sigdigits = 4,
     ) == FT(0.7187)
 
+    @test round(
+        saturated_thermal_conductivity(0.0, 0.0, 0.57, 2.29),
+        sigdigits = 4,
+    ) == FT(0.0)
+
     @test round(relative_saturation(0.25, 0.05, 0.4), sigdigits = 2) == FT(0.75)
 
     # Test branching in kersten_number

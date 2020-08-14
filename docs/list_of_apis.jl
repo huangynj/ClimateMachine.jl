@@ -16,7 +16,7 @@ apis = [
         "Soil Water Parameterizations" =>
             "APIs/Land/SoilWaterParameterizations.md",
         "Soil Heat Parameterizations" =>
-            "APIS/Land/SoilHeatParameterizations.md",
+            "APIs/Land/SoilHeatParameterizations.md",
     ],
     "Common" => [
         "Orientations" => "APIs/Common/Orientations.md",

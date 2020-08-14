@@ -150,7 +150,7 @@ function kersten_number(
     ν_gravel::FT,
 ) where {FT}
 
-    if ϴ_i < eps(FT) # This might give an error due to it not being exactly equal to 0?
+    if ϴ_i < eps(FT)
         K_e =
             S_r^((FT(1) + ν_om - a * ν_sand - ν_gravel) / FT(2)) *
             (
