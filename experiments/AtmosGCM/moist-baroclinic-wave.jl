@@ -171,7 +171,7 @@ function config_baroclinic_wave(FT, poly_order, resolution)
         #hyperdiffusion = DryBiharmonic(FT(8 * 3600)),
         #moisture = DryModel(),
         moisture = EquilMoist{FT}(),
-        source = (Gravity(), Coriolis()),
+        source = (Gravity(), Coriolis(), RemovePrecipitation(true)),
         init_state_prognostic = init_baroclinic_wave!,
     )
 

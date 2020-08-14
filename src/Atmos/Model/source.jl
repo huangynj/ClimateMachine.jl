@@ -1,7 +1,13 @@
 using ClimateMachine.Microphysics_0M
 using CLIMAParameters.Planet: Omega, e_int_i0, cv_d, cv_l, cv_i, T_0
 
-export Source, Gravity, RayleighSponge, Subsidence, GeostrophicForcing, Coriolis, RemovePrecipitation
+export Source,
+    Gravity,
+    RayleighSponge,
+    Subsidence,
+    GeostrophicForcing,
+    Coriolis,
+    RemovePrecipitation
 
 # kept for compatibility
 # can be removed if no functions are using this
@@ -176,7 +182,18 @@ function atmos_source!(
     end
 end
 
-struct RemovePrecipitation <: Source end
+"""
+    RemovePrecipitation{FT} <: Source
+
+Cloud condensate removal when exceeding certain threshold.
+The threshold is defined either in terms of condensate or supersaturation.
+Implemented (right now) as a relaxation term.
+The default thresholds and timescale are defined in CLIMAParameters.jl.
+"""
+struct RemovePrecipitation <: Source
+    " Set to true if using qc based threshold"
+    use_qc_thr::Bool
+end
 function atmos_source!(
     ::RemovePrecipitation,
     atmos::AtmosModel,
@@ -188,8 +205,28 @@ function atmos_source!(
     direction,
 )
     # TODO - should I be using aux here? Or do another saturation adjustement?
+    # TODO - how to assert that it is used with EquilMoist module?
+    #        (if it were to be used with non-EquilMoist model
+    #         q_liq and q_ice would be part of state)
     FT = eltype(state)
     if aux.moisture.q_liq + aux.moisture.q_ice > eps(FT)
+
+        q = PhasePartition(
+            state.moisture.ρq_tot / state.ρ,
+            aux.moisture.q_liq,
+            aux.moisture.q_ice,
+        )
+        T::FT = aux.moisture.temperature
+        q_dry::FT = 1 - q.tot
+
+        dqt_dt::FT = 0
+        if use_qc_thr
+            dqt_dt = remove_precipitation(atmos.param_set, q)
+        else
+            ts_neq = TemperatureSHumNonEquil(atmos.param_set, T, state.ρ, q)
+            q_vap_sat = q_vap_saturation(ts_neq)
+            dqt_dt = remove_precipitation(atmos.param_set, q, q_vap_sat)
+        end
 
         _e_int_i0::FT = e_int_i0(atmos.param_set)
         _cv_d::FT = cv_d(atmos.param_set)
@@ -197,17 +234,19 @@ function atmos_source!(
         _cv_i::FT = cv_i(atmos.param_set)
         _T_0::FT = T_0(atmos.param_set)
 
-        q = PhasePartition(state.moisture.ρq_tot / state.ρ, aux.moisture.q_liq, aux.moisture.q_ice)
-        T::FT = aux.moisture.temperature
+        source.moisture.ρq_tot += state.ρ / q_dry * dqt_dt
 
-        dqt_dt::FT = remove_precipitation(atmos.param_set, q)
+        source.ρ += state.ρ / q_dry * dqt_dt
 
-        source.moisture.ρq_tot += state.ρ * dqt_dt
+        source.ρe +=
+            (
+                q.liq / (q.liq + q.ice) * (_cv_l - _cv_d) * (T - _T_0) +
+                q.ice / (q.liq + q.ice) *
+                ((_cv_i - _cv_d) * (T - _T_0) - _e_int_i0) +
+                state.ρe / state.ρ
+            ) *
+            state.ρ *
+            dqt_dt
 
-        source.ρ  += state.ρ / (FT(1) - q.tot) * dqt_dt
-
-        source.ρe += (q.liq / (q.liq + q.ice) * (_cv_l - _cv_d) * (T - _T_0)
-                      +
-                      q.ice / (q.liq + q.ice) * ((_cv_i - _cv_d) * (T - _T_0) - _e_int_i0)) * state.ρ * dqt_dt
     end
 end

@@ -18,32 +18,46 @@ const APS = AbstractParameterSet
 export remove_precipitation
 
 """
-    remove_precipitation(param_set::APS, q)
+    remove_precipitation(param_set::APS, q; q_vap_sat)
 
- - `param_set` - abstract set
+ - `param_set` - abstract parameter set
  - `q` - current PhasePartition
+ - `q_vap_sat` - water vapor specific humidity at saturation
 
-Returns the total water tendency due to precipitation.
-All the excess total water specific humidity above user-defined threshold
-  is treated as precipitation and removed.
+Returns the `q_tot` tendency due to the removal of precipitation.
 The tendency is obtained assuming a relaxation with a constant timescale
-  to a state with precipitable water removed.
-
+to a state with precipitable water removed.
+The threshold for when to remove `q_tot` is defined either by the
+condensate specific humidity or supersaturation.
+The thresholds and the relaxation timescale are defined in
+CLIMAParameters.
 """
+# TODO:
+# - τ_rain_removal(param_set), etc - move to ClimaParameters
+# - have dt instead of constant timescale?
+
 function remove_precipitation(
     param_set::APS,
-    q::PhasePartition{FT}  # q = PhasePartition(aux.q_tot, aux.q_liq, aux.q_ice)
+    q::PhasePartition{FT},
 ) where {FT <: Real}
 
-    # TODO:
-    # τ_rain_removal(param_set), etc - move to ClimaParameters
-    # have dt instead of constant timescale
-    # threshold based on percentage supersaturation or ql+qi?
+    _τ_rain_removal::FT = FT(1000)
+    _qc_precip_thr::FT = FT(5e-3)
+
+    return -max(FT(0), (q.liq + q.ice - _qc_precip_thr)) / _τ_rain_removal
+end
+
+function remove_precipitation(
+    param_set::APS,
+    q::PhasePartition{FT},
+    q_vap_sat::FT,
+) where {FT <: Real}
 
     _τ_rain_removal::FT = FT(1000)
-    _q_precip_thr::FT = FT(5e-3)
+    _S_precip_thr::FT = FT(0.02)
 
-    return -max(FT(0), (q.liq + q.ice - _q_precip_thr)) / _τ_rain_removal
+    return -max(FT(0), (q.liq + q.ice - _S_precip_thr * q_vap_sat)) /
+           _τ_rain_removal
 end
 
 end #module Microphysics_0M.jl
