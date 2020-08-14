@@ -54,7 +54,17 @@ function soil_boundary_state!(
 )
     water_bc = water.dirichlet_bc
     if bctype == 2
-        top_boundary_conditions!(land, soil, water, water_bc, state⁺, aux⁺, state⁻, aux⁻, t)
+        top_boundary_conditions!(
+            land,
+            soil,
+            water,
+            water_bc,
+            state⁺,
+            aux⁺,
+            state⁻,
+            aux⁻,
+            t,
+        )
     elseif bctype == 1
         bottom_boundary_conditions!(
             land,
@@ -138,7 +148,17 @@ function soil_boundary_state!(
 )
     heat_bc = heat.dirichlet_bc
     if bctype == 2
-        top_boundary_conditions!(land, soil, heat, heat_bc, state⁺, aux⁺, state⁻, aux⁻, t)
+        top_boundary_conditions!(
+            land,
+            soil,
+            heat,
+            heat_bc,
+            state⁺,
+            aux⁺,
+            state⁻,
+            aux⁻,
+            t,
+        )
     elseif bctype == 1
         bottom_boundary_conditions!(
             land,
@@ -418,20 +438,28 @@ function top_boundary_conditions!(
     t,
 )
     if bc.surface_state != nothing
-       FT = eltype(state⁻)
-       _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l = get_clima_params_for_heat(land, FT)
-       ϑ_l, θ_ice = get_water_content(land.soil.water, aux⁻, state⁻, t)
-       θ_l = volumetric_liquid_fraction(ϑ_l, land.soil.param_functions.porosity)
-       c_s = volumetric_heat_capacity(θ_l, θ_ice, land.soil.param_functions.c_ds,
-                                      _cp_l, _cp_i)
-        
-       I_bc = internal_energy(
-       θ_ice,
-       c_s,
-       bc.surface_state(aux⁻, t),
-       _T_ref,
-       _ρ_i,
-       _LH_f0)
+        FT = eltype(state⁻)
+        _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l =
+            get_clima_params_for_heat(land, FT)
+        ϑ_l, θ_ice = get_water_content(land.soil.water, aux⁻, state⁻, t)
+        θ_l =
+            volumetric_liquid_fraction(ϑ_l, land.soil.param_functions.porosity)
+        c_s = volumetric_heat_capacity(
+            θ_l,
+            θ_ice,
+            land.soil.param_functions.c_ds,
+            _cp_l,
+            _cp_i,
+        )
+
+        I_bc = internal_energy(
+            θ_ice,
+            c_s,
+            bc.surface_state(aux⁻, t),
+            _T_ref,
+            _ρ_i,
+            _LH_f0,
+        )
 
         state⁺.soil.heat.I = I_bc
     else
@@ -506,20 +534,28 @@ function bottom_boundary_conditions!(
     t,
 )
     if bc.bottom_state != nothing
-       FT = eltype(state⁻)
-       _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l = get_clima_params_for_heat(land, FT)
-       ϑ_l, θ_ice = get_water_content(land.soil.water, aux⁻, state⁻, t)
-       θ_l = volumetric_liquid_fraction(ϑ_l, land.soil.param_functions.porosity)
-       c_s = volumetric_heat_capacity(θ_l, θ_ice, land.soil.param_functions.c_ds,
-                                      _cp_l, _cp_i)
-        
+        FT = eltype(state⁻)
+        _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l =
+            get_clima_params_for_heat(land, FT)
+        ϑ_l, θ_ice = get_water_content(land.soil.water, aux⁻, state⁻, t)
+        θ_l =
+            volumetric_liquid_fraction(ϑ_l, land.soil.param_functions.porosity)
+        c_s = volumetric_heat_capacity(
+            θ_l,
+            θ_ice,
+            land.soil.param_functions.c_ds,
+            _cp_l,
+            _cp_i,
+        )
+
         I_bc = internal_energy(
-        θ_ice,
-        c_s,
-        bc.bottom_state(aux⁻, t),
-        _T_ref,
-        _ρ_i,
-        _LH_f0)
+            θ_ice,
+            c_s,
+            bc.bottom_state(aux⁻, t),
+            _T_ref,
+            _ρ_i,
+            _LH_f0,
+        )
 
         state⁺.soil.heat.I = I_bc
     else

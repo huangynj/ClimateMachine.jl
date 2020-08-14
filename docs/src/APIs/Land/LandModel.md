@@ -17,6 +17,7 @@ ClimateMachine.Land.PrescribedWaterModel
 ClimateMachine.Land.SoilHeatModel
 ClimateMachine.Land.PrescribedTemperatureModel
 ClimateMachine.Land.SoilWaterParameterizations
+ClimateMachine.Land.SoilHeatParameterizations
 ClimateMachine.Land.SoilParamFunctions
 ```
 

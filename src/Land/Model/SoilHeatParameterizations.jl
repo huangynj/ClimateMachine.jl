@@ -5,7 +5,6 @@ Functions for volumetric heat capacity, internal energy as function of temperatu
 saturated thermal conductivity, thermal conductivty, the Kersten number, and relative
 saturation are included.
 """
-
 module SoilHeatParameterizations
 
 using DocStringExtensions
@@ -38,9 +37,9 @@ function temperature_from_I(
     θ_ice::FT,
     ρ_ice::FT,
     LH_f0::FT,
-    cs::FT
+    cs::FT,
 ) where {FT}
-    T = T_ref + (I + θ_ice*ρ_ice*LH_f0)/cs
+    T = T_ref + (I + θ_ice * ρ_ice * LH_f0) / cs
     return T
 end
 
@@ -53,6 +52,7 @@ end
         cp_l::FT,
         cp_i::FT
     ) where {FT}
+
 Compute the expression for volumetric heat capacity.
 """
 function volumetric_heat_capacity(
@@ -60,10 +60,9 @@ function volumetric_heat_capacity(
     ϴ_i::FT,
     c_ds::FT,
     cp_l::FT,
-    cp_i::FT
+    cp_i::FT,
 ) where {FT}
-
-    c_s = c_ds + ϴ_l *cp_l + ϴ_i * cp_i
+    c_s = c_ds + ϴ_l * cp_l + ϴ_i * cp_i
     return c_s
 end
 
@@ -84,7 +83,7 @@ function internal_energy(
     T::FT,
     T_ref::FT,
     ρ_i::FT,
-    LH_f_0::FT
+    LH_f_0::FT,
 ) where {FT}
     I = c_s * (T - T_ref) - ϴ_i * ρ_i * LH_f_0
     return I
@@ -103,7 +102,7 @@ function saturated_thermal_conductivity(
     ϴ_l::FT,
     ϴ_i::FT,
     κ_sat_unfrozen::FT,
-    κ_sat_frozen::FT
+    κ_sat_frozen::FT,
 ) where {FT}
     #TBD: can we get rid of this branch? if not: create test for it.
     θ_w = ϴ_l + ϴ_i
@@ -112,7 +111,7 @@ function saturated_thermal_conductivity(
     else
         κ_sat = FT(κ_sat_unfrozen^(ϴ_l / θ_w) * κ_sat_frozen^(ϴ_i / θ_w))
     end
-    
+
     return κ_sat
 end
 
@@ -124,13 +123,8 @@ end
     ) where {FT}
 Compute the expression for relative saturation.
 """
-function relative_saturation(
-    θ_l::FT,
-    ϴ_i::FT,
-    porosity::FT
-) where {FT}
-
-    S_r=(θ_l + ϴ_i) / porosity
+function relative_saturation(θ_l::FT, ϴ_i::FT, porosity::FT) where {FT}
+    S_r = (θ_l + ϴ_i) / porosity
     return S_r
 end
 
@@ -153,11 +147,16 @@ function kersten_number(
     b::FT,
     ν_om::FT,
     ν_sand::FT,
-    ν_gravel::FT
+    ν_gravel::FT,
 ) where {FT}
 
     if ϴ_i < eps(FT) # This might give an error due to it not being exactly equal to 0?
-        K_e = S_r^((FT(1) + ν_om - a * ν_sand - ν_gravel) / FT(2)) * ((FT(1) + exp(-b * S_r))^(-FT(3)) - ((FT(1) - S_r) / FT(2))^FT(3))^(FT(1) - ν_om)
+        K_e =
+            S_r^((FT(1) + ν_om - a * ν_sand - ν_gravel) / FT(2)) *
+            (
+                (FT(1) + exp(-b * S_r))^(-FT(3)) -
+                ((FT(1) - S_r) / FT(2))^FT(3)
+            )^(FT(1) - ν_om)
     else
         K_e = S_r^(FT(1) + ν_om)
     end
@@ -172,12 +171,7 @@ end
     ) where {FT}
 Compute the expression for thermal conductivity of soil matrix.
 """
-function thermal_conductivity(
-    κ_dry::FT,
-    K_e::FT,
-    κ_sat::FT
-) where {FT}
-
+function thermal_conductivity(κ_dry::FT, K_e::FT, κ_sat::FT) where {FT}
     κ = K_e * κ_sat + (FT(1) - K_e) * κ_dry
     return κ
 end
@@ -195,9 +189,8 @@ function internal_energy_liquid_water(
     cp_l::FT,
     T::FT,
     T_ref::FT,
-    ρ_l::FT
+    ρ_l::FT,
 ) where {FT}
-
     I_l = ρ_l * cp_l * (T - T_ref)
     return I_l
 end

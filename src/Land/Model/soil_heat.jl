@@ -32,9 +32,7 @@ evaluated in the Balance Law functions (kernels?) compute_gradient_argument,
  nodal_update, etc. whenever the prescribed temperature content variables are 
 needed by the water model.
 """
-function PrescribedTemperatureModel(
-    T::Function = (aux,t) -> eltype(aux)(0.0)
-)
+function PrescribedTemperatureModel(T::Function = (aux, t) -> eltype(aux)(0.0))
     return PrescribedTemperatureModel{typeof(T)}(T)
 end
 
@@ -69,13 +67,9 @@ function SoilHeatModel(
     ::Type{FT};
     initialT = (aux) -> FT(NaN),
     dirichlet_bc::AbstractBoundaryFunctions = nothing,
-    neumann_bc::AbstractBoundaryFunctions = nothing
+    neumann_bc::AbstractBoundaryFunctions = nothing,
 ) where {FT}
-    args = (
-        initialT,
-        dirichlet_bc,
-        neumann_bc
-    )
+    args = (initialT, dirichlet_bc, neumann_bc)
     return SoilHeatModel{FT, typeof.(args)...}(args...)
 end
 
@@ -97,7 +91,7 @@ function get_temperature(
     heat::PrescribedTemperatureModel,
     aux::Vars,
     state::Vars,
-    t::Real
+    t::Real,
 )
     T = heat.T(aux, t)
     return T
@@ -132,8 +126,8 @@ function get_clima_params_for_heat(land::LandModel, FT)
 
     _ρ_l = FT(ρ_cloud_liq(land.param_set))
     _cp_l = FT(cp_l(land.param_set) * _ρ_l)
-    
-    return  _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l
+
+    return _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l
 end
 
 #Probably we dont need κ in aux, unless it is helpful for debugging. 
@@ -141,15 +135,16 @@ end
 vars_state(heat::SoilHeatModel, st::Prognostic, FT) = @vars(I::FT)
 vars_state(heat::SoilHeatModel, st::Auxiliary, FT) = @vars(T::FT)#, κ::FT)
 vars_state(heat::SoilHeatModel, st::Gradient, FT) = @vars(T::FT)
-vars_state(heat::SoilHeatModel, st::GradientFlux, FT) = @vars(κ∇T::SVector{3, FT})
+vars_state(heat::SoilHeatModel, st::GradientFlux, FT) =
+    @vars(κ∇T::SVector{3, FT})
 
 function soil_init_aux!(
-	land::LandModel,
-	soil::SoilModel,
-	heat::SoilHeatModel,
-	aux::Vars,
-	geom::LocalGeometry
-	)
+    land::LandModel,
+    soil::SoilModel,
+    heat::SoilHeatModel,
+    aux::Vars,
+    geom::LocalGeometry,
+)
     aux.soil.heat.T = heat.initialT(aux)
 end
 
@@ -159,16 +154,18 @@ function land_nodal_update_auxiliary_state!(
     heat::SoilHeatModel,
     state::Vars,
     aux::Vars,
-    t::Real
+    t::Real,
 )
     FT = eltype(state)
-    _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l = get_clima_params_for_heat(land, FT)#
+    _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l =
+        get_clima_params_for_heat(land, FT)#
 
-    ϑ_l, θ_ice = get_water_content(land.soil.water,aux, state, t)
+    ϑ_l, θ_ice = get_water_content(land.soil.water, aux, state, t)
     θ_l = volumetric_liquid_fraction(ϑ_l, soil.param_functions.porosity)
     c_ds = soil.param_functions.c_ds
     cs = volumetric_heat_capacity(θ_l, θ_ice, c_ds, _cp_l, _cp_i)
-    aux.soil.heat.T = temperature_from_I(_T_ref, state.soil.heat.I, θ_ice, _ρ_i, _LH_f0, cs)
+    aux.soil.heat.T =
+        temperature_from_I(_T_ref, state.soil.heat.I, θ_ice, _ρ_i, _LH_f0, cs)
 
 
 end
@@ -180,18 +177,20 @@ function compute_gradient_argument!(
     transform::Vars,
     state::Vars,
     aux::Vars,
-    t::Real
+    t::Real,
 )
 
     FT = eltype(state)
-    _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l = get_clima_params_for_heat(land, FT)
+    _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l =
+        get_clima_params_for_heat(land, FT)
 
-    ϑ_l, θ_ice = get_water_content(land.soil.water,aux, state, t)
+    ϑ_l, θ_ice = get_water_content(land.soil.water, aux, state, t)
     θ_l = volumetric_liquid_fraction(ϑ_l, soil.param_functions.porosity)
     c_ds = soil.param_functions.c_ds
     cs = volumetric_heat_capacity(θ_l, θ_ice, c_ds, _cp_l, _cp_i)
 
-    transform.soil.heat.T = temperature_from_I(_T_ref, state.soil.heat.I, θ_ice, _ρ_i, _LH_f0, cs)#aux.soil.heat.T
+    transform.soil.heat.T =
+        temperature_from_I(_T_ref, state.soil.heat.I, θ_ice, _ρ_i, _LH_f0, cs)#aux.soil.heat.T
 end
 
 function compute_gradient_flux!(
@@ -205,17 +204,29 @@ function compute_gradient_flux!(
     t::Real,
 )
     FT = eltype(state)
-    _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l = get_clima_params_for_heat(land, FT)#
-    ϑ_l, θ_ice = get_water_content(land.soil.water,aux, state, t)
+    _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l =
+        get_clima_params_for_heat(land, FT)#
+    ϑ_l, θ_ice = get_water_content(land.soil.water, aux, state, t)
     θ_l = volumetric_liquid_fraction(ϑ_l, soil.param_functions.porosity)
     κ_dry = soil.param_functions.κ_dry
     S_r = relative_saturation(θ_l, θ_ice, soil.param_functions.porosity)
-    kersten  = kersten_number(θ_ice, S_r, soil.param_functions.a, soil.param_functions.b,
-                              soil.param_functions.ν_om, soil.param_functions.ν_sand,
-                              soil.param_functions.ν_gravel)
-    κ_sat = saturated_thermal_conductivity(θ_l, θ_ice, soil.param_functions.κ_sat_unfrozen,
-                                           soil.param_functions.κ_sat_frozen)
-    diffusive.soil.heat.κ∇T = thermal_conductivity(κ_dry, kersten, κ_sat) * ∇transform.soil.heat.T
+    kersten = kersten_number(
+        θ_ice,
+        S_r,
+        soil.param_functions.a,
+        soil.param_functions.b,
+        soil.param_functions.ν_om,
+        soil.param_functions.ν_sand,
+        soil.param_functions.ν_gravel,
+    )
+    κ_sat = saturated_thermal_conductivity(
+        θ_l,
+        θ_ice,
+        soil.param_functions.κ_sat_unfrozen,
+        soil.param_functions.κ_sat_frozen,
+    )
+    diffusive.soil.heat.κ∇T =
+        thermal_conductivity(κ_dry, kersten, κ_sat) * ∇transform.soil.heat.T
 end
 
 function flux_second_order!(
@@ -230,9 +241,11 @@ function flux_second_order!(
     t::Real,
 )
     FT = eltype(state)
-    _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l = get_clima_params_for_heat(land, FT)
+    _T_ref, _LH_f0, _ρ_i, _ρ_l, _cp_i, _cp_l =
+        get_clima_params_for_heat(land, FT)
     I_l = internal_energy_liquid_water(_cp_l, aux.soil.heat.T, _T_ref, _ρ_l)
-    diffusive_water_flux = -I_l .* get_diffusive_water_flux(soil.water, diffusive, FT)
+    diffusive_water_flux =
+        -I_l .* get_diffusive_water_flux(soil.water, diffusive, FT)
     flux.soil.heat.I -= diffusive.soil.heat.κ∇T + diffusive_water_flux
 
 end

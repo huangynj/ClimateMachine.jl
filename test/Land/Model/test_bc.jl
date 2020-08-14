@@ -59,7 +59,7 @@ using ClimateMachine.BalanceLaws:
             bottom_flux = bottom_flux,
         ),
     )
-    soil_heat_model = PrescribedTemperatureModel(FT;)
+    soil_heat_model = PrescribedTemperatureModel()
 
     m_soil = SoilModel(soil_param_functions, soil_water_model, soil_heat_model)
     sources = ()
