@@ -526,7 +526,7 @@ function main()
     # For the test we set this to == 30 minutes
     # timeend = FT(13.805585)
     # timeend = FT(400)
-    timeend = FT(2)
+    timeend = FT(400)
     #timeend = FT(3600 * 6)
     CFLmax = FT(0.90)
 

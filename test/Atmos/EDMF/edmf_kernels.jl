@@ -447,6 +447,7 @@ function turbconv_nodal_update_auxiliary_state!(
         up_a[i].ε_dyn = ε_dyn
         up_a[i].δ_dyn = δ_dyn
         up_a[i].ε_trb = ε_trb
+        up_a[i].ε_δ = ε_dyn - δ_dyn
     end
 
 end;
@@ -605,6 +606,7 @@ function turbconv_source!(
         # first moment sources - for now we compute these as aux variable
         ε_dyn[i], δ_dyn[i], ε_trb[i] =
             entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+        δ_dyn[i] = FT(0)
         dpdz, dpdz_tke_i = perturbation_pressure(
             m,
             m.turbconv.pressure,
@@ -811,10 +813,11 @@ function flux_second_order!(
 
     ntuple(N_up) do i
         # for now we compute these as aux variable
-        # ε_dyn[i], δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
+        ε_dyn[i], δ_dyn[i], ε_trb[i] = entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
         ε_dyn[i] = up_a[i].ε_dyn
         δ_dyn[i] = up_a[i].δ_dyn
         ε_trb[i] = up_a[i].ε_trb
+        δ_dyn[i] = FT(0)
     end
     # l_mix = mixing_length(m, turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
     l_mix = FT(500)
@@ -905,7 +908,9 @@ function turbconv_boundary_state!(
     aux⁻::Vars,
     bctype,
     t,
-    _...,
+    state_int::Vars,
+    diff_int::Vars,
+    aux_int::Vars,
 ) where {FT}
 
     turbconv = m.turbconv
@@ -930,17 +935,18 @@ function turbconv_boundary_state!(
             # upd_θ_liq_surf[i] = FT(298.8)
             # upd_q_tot_surf[i] = FT(0.01793)
             # up[i].ρa = FT(0.01173)
-
-            up[i].ρaw = FT(0)
-            # up[i].ρa = upd_a_surf[i] * gm.ρ
             # if 45.11614 < t < 55
             #     @show t, i, upd_θ_liq_surf[i], up[i].ρa, upd_q_tot_surf[i]
             # end
+
+            up[i].ρaw = FT(0)
+            up[i].ρa = upd_a_surf[i] * gm.ρ
             up[i].ρaθ_liq = up[i].ρa * upd_θ_liq_surf[i]
             up[i].ρaq_tot = up[i].ρa * upd_q_tot_surf[i]
         end
+        zLL = altitude(m, aux_int) # or just zLL = FT(20)
         θ_liq_cv, q_tot_cv, θ_liq_q_tot_cv, tke =
-            env_surface_covariances(turbconv.surface, turbconv, m, gm, gm_a)
+            env_surface_covariances(turbconv.surface, turbconv, m, gm, gm_a, zLL)
         en_area = environment_area(gm, gm_a, N_up)
 
         en.ρatke = gm.ρ * en_area * tke

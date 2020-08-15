@@ -32,6 +32,7 @@ function env_surface_covariances(
     atmos::AtmosModel{FT},
     state::Vars,
     aux::Vars,
+    zLL::FT,
 ) where {FT}
     turbconv = atmos.turbconv
 
@@ -58,7 +59,6 @@ function env_surface_covariances(
     q_tot_surface_flux = m.surface_lhf / lv
     oblength = -FT(100)
     ustar = FT(0.28)
-    zLL = FT(20) # how to get the z first interior ?
     if oblength < 0
         θ_liq_cv =
             4 * (θ_liq_surface_flux * θ_liq_surface_flux) / (ustar * ustar) *
