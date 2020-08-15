@@ -7,7 +7,8 @@ using ClimateMachine.DGMethods.NumericalFluxes:
     RusanovNumericalFlux,
     CentralNumericalFluxGradient,
     CentralNumericalFluxSecondOrder,
-    CentralNumericalFluxFirstOrder
+    CentralNumericalFluxFirstOrder,
+    RoeNumericalFlux
 using ClimateMachine.ODESolvers
 using ClimateMachine.VTK: writevtk, writepvtu
 using ClimateMachine.GenericCallbacks:
@@ -21,8 +22,7 @@ using ClimateMachine.Atmos:
     DryModel,
     NoPrecipitation,
     NoRadiation,
-    vars_state,
-    RoeNumericalFlux
+    vars_state
 
 using ClimateMachine.Orientations: NoOrientation
 using ClimateMachine.VariableTemplates: flattenednames

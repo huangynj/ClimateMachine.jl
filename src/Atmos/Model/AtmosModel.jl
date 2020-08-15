@@ -76,10 +76,10 @@ import ..DGMethods.NumericalFluxes:
     CentralNumericalFluxDivergence,
     CentralNumericalFluxFirstOrder,
     numerical_flux_first_order!
+using ..DGMethods.NumericalFluxes: RoeNumericalFlux
 
 import ..Courant: advective_courant, nondiffusive_courant, diffusive_courant
 
-struct RoeNumericalFlux <: NumericalFluxFirstOrder end
 
 """
     AtmosModel <: BalanceLaw
